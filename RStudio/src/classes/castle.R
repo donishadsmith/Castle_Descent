@@ -81,5 +81,6 @@ Castle <- setRefClass(
 
 # Check if coordinate is in dataframe and return a boolean
 .check_coord <- function(input, df) {
-  return(any(sapply(seq(nrow(df)), function(row) all(input %in% df[row, 1:3]))))
+  return(any(sapply(seq(nrow(df)), function(row) identical(input, df[row, 1:3]))))
 }
+
