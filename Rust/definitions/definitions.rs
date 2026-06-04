@@ -1,4 +1,3 @@
-
 use std::{collections::HashMap, ops::Range};
 
 enum Item {
@@ -20,5 +19,4 @@ struct Zombie {
     distance_from_player: u32,
 }
 
-fn main() {
-}
+fn main() {}

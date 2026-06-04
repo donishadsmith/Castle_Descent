@@ -1,0 +1,10 @@
+[package]
+name = "definitions"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[[bin]]
+name = "definitions"
+path = "definitions.rs"
