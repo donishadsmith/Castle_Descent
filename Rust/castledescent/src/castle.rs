@@ -1,7 +1,10 @@
-use crate::movement::Descent;
-use rand::prelude::*;
 use std::collections::HashMap;
+
+use rand::prelude::*;
 use strum::Display;
+
+use crate::movement::Descent;
+use crate::utils::prelude::*;
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -57,9 +60,9 @@ pub struct Castle {
 
 impl Castle {
     pub fn generate() -> Self {
-        let width = Self::choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
-        let depth = Self::choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
-        let floors = Self::choose_random_value((MIN_FLOORS..MAX_FLOORS).collect());
+        let width = choose_random_value(MIN_LENGTH..MAX_LENGTH);
+        let depth = choose_random_value(MIN_LENGTH..MAX_LENGTH);
+        let floors = choose_random_value(MIN_FLOORS..MAX_FLOORS);
         let mut layout: HashMap<(i8, i8, i8), Tile> = HashMap::new();
         Self::populate_layout(&mut layout, width, depth, floors);
 
@@ -70,12 +73,6 @@ impl Castle {
             current_floor: 0,
             layout,
         }
-    }
-
-    fn choose_random_value(mut vec: Vec<i8>) -> i8 {
-        let mut rng = rand::rng();
-
-        *vec.choose(&mut rng).unwrap()
     }
 
     fn choose_random_door() -> Tile {
@@ -104,7 +101,7 @@ impl Castle {
         // Clones are are considered to be deepcopies and are normally done to copy the
         // heap allocated data and the struct on the stack to create two independent copies
         // that own their own buffers
-        let mut reveals: [Tile; 6] = [
+        let reveals: [Tile; 6] = [
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
@@ -122,8 +119,8 @@ impl Castle {
 
     fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
         for floor in 0..floors {
-            let x = Self::choose_random_value((0..width).collect());
-            let y = Self::choose_random_value((0..depth).collect());
+            let x = choose_random_value(0..width);
+            let y = choose_random_value(0..depth);
 
             // Zero reason to explicitly dereference, just doing it to be
             // explicit about the implicit dereferencing of a mutable borrow
