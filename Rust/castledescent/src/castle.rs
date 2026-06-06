@@ -7,7 +7,7 @@ const MAX_FLOORS: i8 = 6;
 const MIN_LENGTH: i8 = 10;
 const MAX_LENGTH: i8 = 20;
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Copy, Debug, Display)]
 pub enum Reveal {
     Monster,
     Fairy,
@@ -15,7 +15,7 @@ pub enum Reveal {
     Exit,
 }
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Copy, Debug, Display)]
 pub enum Tile {
     Door(Reveal), //Tile::Door(Reveal::Exit)
     Floor,
@@ -82,7 +82,29 @@ impl Castle {
         let mut rng = rand::rng();
         // Assume everything is equally weighted to give greater
         // precedence to Monster (4/6)
-        let mut reveals: Vec<Tile> = vec![
+
+        // Enums do not naturally have the copy trait and needs to be derived
+        // anything that does not implement the copy trait is considered a move
+        // which is still a bitwise copy but the compiler considers the new
+        // variable the owner of the data. Moves typically for rust types
+        // that have a struct on stack that contains a pointer to some data
+        // on the heap. Moves are to denote who is responsible for deleting
+        // heap data to prevent freeing twice.
+        // Copies are bitwise copies for stack only data like primitives, the bytes
+        // are independent, for structs that contain pointers, you would end up with
+        // two variables that contain the same metadata to the data on the heap which
+        // can cause a double free memory issue. Note that not all pointers contain
+        // the memory address for data on the heap, it can also contain a memory address
+        // to a stack variable that can result in a dangling pointer issue. Essentially,
+        // the stack is a last in, first out where stack frames are popped off. If 
+        // a stack variable points to the address of stack object that it lives longer than,
+        // then you risk receiving garbage data. So, you can either have infinite read only copies
+        // or one mutable copy to prevent data race conditions. Note that you can bitwise copy data on the
+        // heap to the stack.
+        // Clones are are considered to be deepcopies and are normally done to copy the
+        // heap allocated data and the struct on the stack to create two independent copies
+        // that own their own buffers
+        let mut reveals: [Tile; 6] = [
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
@@ -91,10 +113,12 @@ impl Castle {
             Tile::Door(Reveal::Genie),
         ];
         reveals.shuffle(&mut rng);
-
-        // This is a move; however, moves require the Copy trait to be implemented
-        // which enums do not have unless implemented
-        reveals[0].clone()
+        
+        // Now that derive is used for the Copy trait, we can now bitwise copy
+        // to bitwise copy the first element to another stack memory address
+        // if Vec<Tile> = !vec[...] was used, instead it would be a bitwise copy
+        // of the enum struct on the heap to a version on the stack
+        reveals[0]
     }
 
     fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
@@ -131,7 +155,7 @@ impl Castle {
         }
     }
 
-    pub fn check_object(&self, x: i8, y: i8, z: i8) -> &str {
+    pub fn check_object(&self, x: i8, y: i8, z: i8) -> &'static str {
         match self.layout.get(&(x, y, z)).unwrap() {
             Tile::Door(Reveal::Monster) => "Monster",
             Tile::Door(Reveal::Genie) => "Genie",
