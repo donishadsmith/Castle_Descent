@@ -17,4 +17,9 @@ fn main() {
             }
         }
     }
+    let mut x = vec![1, 1, 1];
+    let mut y = &mut x;
+    let z = &mut y;
+    (*y)[0] += 1;
+    println!("{:?}", x)
 }

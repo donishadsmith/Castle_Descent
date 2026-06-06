@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 rand = "0.10.1"
-strum = { version = "0.26", features = ["derive"] }
+strum = { version = "0.28", features = ["derive"] }
