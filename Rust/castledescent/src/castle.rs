@@ -21,7 +21,7 @@ pub enum Reveal {
 
 #[derive(Clone, Copy, Debug, Display)]
 pub enum Tile {
-    Door(Reveal), //Tile::Door(Reveal::Exit)
+    Door(Reveal),
     Floor,
 }
 

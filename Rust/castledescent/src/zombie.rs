@@ -1,9 +1,9 @@
 use crate::movement::Descent;
 
 pub struct Zombie {
-    halt: bool,
-    current_position: (i8, i8, i8),
-    distance_from_player: u32,
+    pub halt: bool,
+    pub current_position: (i8, i8, i8),
+    pub distance_from_player: u32,
 }
 
 impl Descent for Zombie {
