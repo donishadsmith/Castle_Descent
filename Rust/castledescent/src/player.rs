@@ -55,16 +55,16 @@ impl Player {
         placement: PlayerPlacement,
         current_floor: i8,
     ) -> (i8, i8, i8) {
-        match placement {
+        let mut keys = match placement {
             PlayerPlacement::Initialize => {
-                let mut keys = filter_possible_coordinates(castle, current_floor);
-                return Self::choose_random_coordinate(&mut keys);
+                filter_possible_coordinates(castle, current_floor)
             }
             PlayerPlacement::NextLevel => {
-                let mut keys = filter_possible_coordinates(castle, current_floor + 1);
-                return Self::choose_random_coordinate(&mut keys);
+                filter_possible_coordinates(castle, current_floor + 1)
             }
-        }
+        };
+
+        Self::choose_random_coordinate(&mut keys)
     }
 }
 
