@@ -25,30 +25,6 @@ pub enum Tile {
     Floor,
 }
 
-/* // Can replace the impl trait using #[derive(Clone)]
-impl Clone for Reveal {
-    fn clone(&self) -> Self {
-        match self {
-            Reveal::Monster => Reveal::Monster,
-            Reveal::Genie => Reveal::Genie,
-            Reveal::Fairy => Reveal::Fairy,
-            Reveal::Exit => Reveal::Exit,
-        }
-    }
-}
-
-impl Clone for Tile {
-    fn clone(&self) -> Self {
-        match self {
-            Tile::Door(Reveal::Monster) => Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Genie) => Tile::Door(Reveal::Genie),
-            Tile::Door(Reveal::Fairy) => Tile::Door(Reveal::Fairy),
-            Tile::Door(Reveal::Exit) => Tile::Door(Reveal::Exit),
-            Tile::Floor => Tile::Floor,
-        }
-    }
-}
-*/
 
 pub struct Castle {
     pub width: i8,
@@ -80,27 +56,6 @@ impl Castle {
         // Assume everything is equally weighted to give greater
         // precedence to Monster (4/6)
 
-        // Enums do not naturally have the copy trait and needs to be derived
-        // anything that does not implement the copy trait is considered a move
-        // which is still a bitwise copy but the compiler considers the new
-        // variable the owner of the data. Moves typically for rust types
-        // that have a struct on stack that contains a pointer to some data
-        // on the heap. Moves are to denote who is responsible for deleting
-        // heap data to prevent freeing twice.
-        // Copies are bitwise copies for stack only data like primitives, the bytes
-        // are independent, for structs that contain pointers, you would end up with
-        // two variables that contain the same metadata to the data on the heap which
-        // can cause a double free memory issue. Note that not all pointers contain
-        // the memory address for data on the heap, it can also contain a memory address
-        // to a stack variable that can result in a dangling pointer issue. Essentially,
-        // the stack is a last in, first out where stack frames are popped off. If
-        // a stack variable points to the address of stack object that it lives longer than,
-        // then you risk receiving garbage data. So, you can either have infinite read only copies
-        // or one mutable copy to prevent data race conditions. Note that you can bitwise copy data on the
-        // heap to the stack.
-        // Clones are are considered to be deepcopies and are normally done to copy the
-        // heap allocated data and the struct on the stack to create two independent copies
-        // that own their own buffers
         let reveals: [Tile; 6] = [
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
@@ -122,9 +77,6 @@ impl Castle {
             let x = choose_random_value(0..width);
             let y = choose_random_value(0..depth);
 
-            // Zero reason to explicitly dereference, just doing it to be
-            // explicit about the implicit dereferencing of a mutable borrow
-            // to modify the object
             (*layout).insert((x, y, floor), Tile::Door(Reveal::Exit));
         }
     }
