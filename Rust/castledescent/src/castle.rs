@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::movement::Descent;
-use crate::utils::prelude::*;
+use crate::{movement::Descent, utils::prelude::*};
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -25,7 +24,6 @@ pub enum Tile {
     Floor,
 }
 
-
 pub struct Castle {
     pub width: i8,
     pub depth: i8,
@@ -36,9 +34,9 @@ pub struct Castle {
 
 impl Castle {
     pub fn generate() -> Self {
-        let width = choose_random_value(MIN_LENGTH..MAX_LENGTH);
-        let depth = choose_random_value(MIN_LENGTH..MAX_LENGTH);
-        let floors = choose_random_value(MIN_FLOORS..MAX_FLOORS);
+        let width = choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
+        let depth = choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
+        let floors = choose_random_value((MIN_FLOORS..MAX_FLOORS).collect());
         let mut layout: HashMap<(i8, i8, i8), Tile> = HashMap::new();
         Self::populate_layout(&mut layout, width, depth, floors);
 
@@ -74,8 +72,8 @@ impl Castle {
 
     fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
         for floor in 0..floors {
-            let x = choose_random_value(0..width);
-            let y = choose_random_value(0..depth);
+            let x = choose_random_value((0..width).step_by(2).collect());
+            let y = choose_random_value((0..depth).step_by(2).collect());
 
             (*layout).insert((x, y, floor), Tile::Door(Reveal::Exit));
         }

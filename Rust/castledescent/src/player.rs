@@ -1,17 +1,11 @@
-use rand::prelude::*;
-
 use std::collections::HashMap;
 
-use crate::castle::Castle;
-use crate::merchant::Item;
-use crate::movement::Descent;
-use crate::utils::filter_possible_coordinates;
-
-pub enum PlayerStatus {
-    Active,
-    Loss,
-    Win,
-}
+use crate::{
+    castle::Castle,
+    merchant::Item,
+    movement::Descent,
+    utils::{Status, choose_random_coordinate, filter_possible_coordinates},
+};
 
 pub enum PlayerPlacement {
     Initialize,
@@ -25,7 +19,8 @@ pub struct Player {
     pub attack_power: (i16, i16),
     pub current_position: (i8, i8, i8),
     pub inventory: HashMap<Item, i16>,
-    pub status: PlayerStatus,
+    pub status: Status,
+    pub unicode: &'static str,
 }
 
 impl Player {
@@ -40,14 +35,9 @@ impl Player {
             attack_power: (1, 5),
             current_position,
             inventory: HashMap::new(),
-            status: PlayerStatus::Active,
+            status: Status::Active,
+            unicode: &"\u{1F93A}",
         }
-    }
-
-    fn choose_random_coordinate(keys: &mut Vec<(i8, i8, i8)>) -> (i8, i8, i8) {
-        let mut rng = rand::rng();
-
-        *keys.choose(&mut rng).unwrap()
     }
 
     fn select_initial_location(
@@ -57,14 +47,24 @@ impl Player {
     ) -> (i8, i8, i8) {
         let mut keys = match placement {
             PlayerPlacement::Initialize => {
-                filter_possible_coordinates(castle, current_floor)
+                let mut keys = filter_possible_coordinates(castle, current_floor);
+                return choose_random_coordinate(&mut keys);
             }
             PlayerPlacement::NextLevel => {
-                filter_possible_coordinates(castle, current_floor + 1)
+                let mut keys = filter_possible_coordinates(castle, current_floor + 1);
+                return choose_random_coordinate(&mut keys);
             }
         };
 
         Self::choose_random_coordinate(&mut keys)
+    }
+
+    fn change_status(&mut self, status: Status) {
+        self.status = match status {
+            Status::Active => Status::Active,
+            Status::Win => Status::Win,
+            Status::Lose => Status::Lose,
+        }
     }
 }
 

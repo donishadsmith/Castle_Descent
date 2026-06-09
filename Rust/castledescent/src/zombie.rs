@@ -1,9 +1,73 @@
-use crate::movement::Descent;
+use std::collections::HashMap;
+
+use crate::{
+    castle::{Castle, Tile},
+    movement::Descent,
+    player::Player,
+    utils::Status,
+};
+
+pub enum ZombieStatus {
+    NotFrozen(Status),
+    Frozen,
+}
 
 pub struct Zombie {
-    pub halt: bool,
+    pub status: ZombieStatus,
     pub current_position: (i8, i8, i8),
-    pub distance_from_player: u32,
+    pub distance_from_player: i8,
+    pub unicode: &'static str,
+}
+
+impl Zombie {
+    pub fn spawn(castle: &Castle, player: &Player) -> Self {
+        let current_position = Self::select_initial_location(castle, player);
+        let distance_from_player =
+            Self::chebyshev_distance(&current_position, &player.current_position);
+
+        Zombie {
+            status: ZombieStatus::NotFrozen(Status::Active),
+            current_position,
+            distance_from_player,
+            unicode: &"\u{1F9DF}",
+        }
+    }
+
+    pub fn chebyshev_distance(a: &(i8, i8, i8), b: &(i8, i8, i8)) -> i8 {
+        let x = (b.0 - a.0).abs();
+        let y = (b.1 - a.1).abs();
+
+        x.max(y)
+    }
+
+    fn select_initial_location(castle: &Castle, player: &Player) -> (i8, i8, i8) {
+        let mut distance_hashmap: HashMap<(i8, i8, i8), i8> = HashMap::new();
+        for key in castle.layout.keys() {
+            if matches!(castle.layout.get(key).unwrap(), Tile::Floor) {
+                distance_hashmap.insert(
+                    key.clone(),
+                    Self::chebyshev_distance(&player.current_position, &key),
+                );
+            }
+        }
+
+        let max_val = distance_hashmap.values().max().unwrap().clone();
+
+        // Will never be None
+        distance_hashmap
+            .into_iter()
+            .find_map(|(key, val)| if val == max_val { Some(key) } else { None })
+            .unwrap()
+    }
+
+    fn change_status(&mut self, status: ZombieStatus) {
+        self.status = match status {
+            ZombieStatus::NotFrozen(Status::Active) => ZombieStatus::NotFrozen(Status::Active),
+            ZombieStatus::NotFrozen(Status::Win) => ZombieStatus::NotFrozen(Status::Win),
+            ZombieStatus::NotFrozen(Status::Lose) => ZombieStatus::NotFrozen(Status::Lose),
+            ZombieStatus::Frozen => ZombieStatus::Frozen,
+        }
+    }
 }
 
 impl Descent for Zombie {

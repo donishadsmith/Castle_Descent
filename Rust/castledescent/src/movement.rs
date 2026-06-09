@@ -5,3 +5,5 @@ pub trait Descent {
         *self.increment_floor() += 1
     }
 }
+
+pub trait Controller {}
