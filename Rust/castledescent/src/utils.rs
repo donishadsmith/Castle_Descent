@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rand::prelude::*;
 
 use crate::{
@@ -30,16 +32,15 @@ pub fn choose_random_coordinate(keys: &mut Vec<(i8, i8, i8)>) -> (i8, i8, i8) {
 }
 
 pub fn filter_possible_coordinates(
-    castle: &Castle,
+    layout: &HashMap<(i8, i8, i8), Tile>,
     current_floor: i8,
     filter_type: Tile,
 ) -> Vec<(i8, i8, i8)> {
-    let filtered_keys = castle
-        .layout
+    let filtered_keys = layout
         .keys()
         .into_iter()
         .filter_map(|key| {
-            (key.2 == current_floor && castle.layout.get(&key).unwrap() == &filter_type)
+            (key.2 == current_floor && layout.get(&key).unwrap() == &filter_type)
                 .then_some(key.clone())
         })
         .collect();
@@ -65,7 +66,7 @@ fn reached_final_exit(castle: &Castle, player: &Player) -> bool {
     } else {
         // There will always be one exit
         let exit_coordinate =
-            filter_possible_coordinates(&castle, castle.floors, Tile::Door(Reveal::Exit))[0];
+            filter_possible_coordinates(&castle.layout, castle.floors, Tile::Door(Reveal::Exit))[0];
         if (exit_coordinate.0 - player.current_position.0) == 0
             && (exit_coordinate.1 - player.current_position.1) == 0
         {

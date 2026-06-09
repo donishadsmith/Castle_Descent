@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::{movement::Descent, utils::prelude::*};
+use crate::{
+    movement::Descent,
+    utils::{filter_possible_coordinates, prelude::*},
+};
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -22,6 +25,7 @@ pub enum Reveal {
 pub enum Tile {
     Door(Reveal),
     Floor,
+    Merchant,
 }
 
 pub struct Castle {
@@ -79,8 +83,31 @@ impl Castle {
         }
     }
 
+    fn insert_merchants(
+        layout: &mut HashMap<(i8, i8, i8), Tile>,
+        width: i8,
+        depth: i8,
+        floors: i8,
+    ) {
+        for floor in 0..floors {
+            let mut possible_x_coordinates: Vec<i8> = (0..width).step_by(2).collect();
+            let mut possible_y_coordinates: Vec<i8> = (0..depth).step_by(2).collect();
+
+            let exit_coordinate =
+                filter_possible_coordinates(&(*layout).clone(), floor, Tile::Door(Reveal::Exit))[0];
+            possible_x_coordinates.retain(|&x| x != exit_coordinate.0);
+            possible_y_coordinates.retain(|&y| y != exit_coordinate.0);
+
+            let x = choose_random_value(possible_x_coordinates);
+            let y = choose_random_value(possible_y_coordinates);
+
+            (*layout).insert((x, y, floor), Tile::Merchant);
+        }
+    }
+
     fn populate_layout(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
         Self::insert_exits(layout, width, depth, floors);
+        Self::insert_merchants(layout, width, depth, floors);
 
         for i in 0..width {
             for j in 0..depth {
@@ -105,6 +132,7 @@ impl Castle {
             Tile::Door(Reveal::Genie) => "Genie",
             Tile::Door(Reveal::Fairy) => "Fairy",
             Tile::Door(Reveal::Exit) => "Exit",
+            Tile::Merchant => "Merchant",
             Tile::Floor => "Floor",
         }
     }

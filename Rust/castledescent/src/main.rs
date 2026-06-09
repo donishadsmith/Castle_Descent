@@ -22,6 +22,14 @@ fn main() {
     println!("{:?}", zombie.current_position);
     println!("{}", zombie.distance_from_player);
 
+    for i in 0..castle.width {
+        for j in 0..castle.depth {
+            for k in 0..castle.floors {
+                println!("{}", castle.check_object(i, j, k));
+            }
+        }
+    }
+
     let final_game_status: Status = loop {
         let current_game_state = check_game_status(&castle, &player, &zombie);
 

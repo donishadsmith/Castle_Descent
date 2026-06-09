@@ -77,12 +77,14 @@ class Castle:
         # Remove coordinates that are potentially occupied
         all_coords -= set(self.objects.keys())
         all_coords -= set(tuple(self.merchant))
+
         return list(all_coords)
 
     # New X, Y for each floor
     def initialize_grid(self):
         val = random.sample(range(11, 22, 2), 1)[0]
         self.grid = (val, val - 2)
+
         return self
 
     def next_floor(self):
@@ -111,4 +113,5 @@ class Castle:
             f"Objects Initialized: {False if not self.grid else True}\n"
             f"Merchant Coordinate: {self.grid}\n"
         )
+
         return state

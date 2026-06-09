@@ -47,10 +47,10 @@ impl Player {
     ) -> (i8, i8, i8) {
         let mut keys = match placement {
             PlayerPlacement::Initialize => {
-                filter_possible_coordinates(castle, current_floor, Tile::Floor)
+                filter_possible_coordinates(&castle.layout, current_floor, Tile::Floor)
             }
             PlayerPlacement::NextLevel => {
-                filter_possible_coordinates(castle, current_floor + 1, Tile::Floor)
+                filter_possible_coordinates(&castle.layout, current_floor + 1, Tile::Floor)
             }
         };
 
