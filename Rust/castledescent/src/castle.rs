@@ -92,7 +92,7 @@ impl Castle {
         for floor in 0..floors {
             let mut possible_x_coordinates: Vec<i8> = (0..width).step_by(2).collect();
             let mut possible_y_coordinates: Vec<i8> = (0..depth).step_by(2).collect();
-           
+
             let exit_coordinate =
                 filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Exit))[0];
             possible_x_coordinates.retain(|&x| x != exit_coordinate.0);
