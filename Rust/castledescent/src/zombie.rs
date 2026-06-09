@@ -60,7 +60,7 @@ impl Zombie {
             .unwrap()
     }
 
-    fn change_status(&mut self, status: ZombieStatus) {
+    pub fn change_status(&mut self, status: ZombieStatus) {
         self.status = match status {
             ZombieStatus::NotFrozen(Status::Active) => ZombieStatus::NotFrozen(Status::Active),
             ZombieStatus::NotFrozen(Status::Win) => ZombieStatus::NotFrozen(Status::Win),

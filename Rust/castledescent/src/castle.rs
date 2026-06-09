@@ -10,7 +10,7 @@ const MAX_FLOORS: i8 = 6;
 const MIN_LENGTH: i8 = 10;
 const MAX_LENGTH: i8 = 20;
 
-#[derive(Clone, Copy, Debug, Display)]
+#[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum Reveal {
     Monster,
     Fairy,
@@ -18,7 +18,7 @@ pub enum Reveal {
     Exit,
 }
 
-#[derive(Clone, Copy, Debug, Display)]
+#[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum Tile {
     Door(Reveal),
     Floor,

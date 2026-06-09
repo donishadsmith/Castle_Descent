@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    castle::Castle,
+    castle::{Castle, Tile},
     merchant::Item,
     movement::Descent,
     utils::{Status, choose_random_coordinate, filter_possible_coordinates},
@@ -46,19 +46,27 @@ impl Player {
         current_floor: i8,
     ) -> (i8, i8, i8) {
         let mut keys = match placement {
-            PlayerPlacement::Initialize => filter_possible_coordinates(castle, current_floor),
-            PlayerPlacement::NextLevel => filter_possible_coordinates(castle, current_floor + 1),
+            PlayerPlacement::Initialize => {
+                filter_possible_coordinates(castle, current_floor, Tile::Floor)
+            }
+            PlayerPlacement::NextLevel => {
+                filter_possible_coordinates(castle, current_floor + 1, Tile::Floor)
+            }
         };
 
         choose_random_coordinate(&mut keys)
     }
 
-    fn change_status(&mut self, status: Status) {
+    pub fn change_status(&mut self, status: Status) {
         self.status = match status {
             Status::Active => Status::Active,
             Status::Win => Status::Win,
             Status::Lose => Status::Lose,
         }
+    }
+
+    pub fn caught(&mut self) {
+        self.status = Status::Lose
     }
 }
 
