@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-use castledescent::{
+use Castle_Descent::{
     castle::{Castle, Tile},
     player::Player,
     utils::{Status, check_game_status},
