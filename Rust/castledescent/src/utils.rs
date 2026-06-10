@@ -36,13 +36,9 @@ pub fn filter_possible_coordinates(
     current_floor: i8,
     filter_type: Tile,
 ) -> Vec<(i8, i8, i8)> {
-    let filtered_keys = layout
-        .keys()
-        .into_iter()
-        .filter_map(|key| {
-            (key.2 == current_floor && layout.get(&key).unwrap() == &filter_type)
-                .then_some(key.clone())
-        })
+    let filtered_keys: Vec<(i8, i8, i8)> = layout
+        .iter()
+        .filter_map(|(key, tile)| (key.2 == current_floor && tile == &filter_type).then_some(*key))
         .collect();
 
     filtered_keys
@@ -54,10 +50,7 @@ fn player_caught(player: &Player, zombie: &Zombie) -> bool {
         (player.current_position.1 - zombie.current_position.1).abs(),
     );
 
-    match val.0 + val.1 {
-        0 => true,
-        _ => false,
-    }
+    (val.0 + val.1) == 0
 }
 
 fn reached_final_exit(castle: &Castle, player: &Player) -> bool {

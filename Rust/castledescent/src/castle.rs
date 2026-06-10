@@ -18,6 +18,7 @@ pub enum Reveal {
     Monster,
     Fairy,
     Genie,
+    Empty,
     Exit,
 }
 
@@ -34,6 +35,7 @@ pub struct Castle {
     pub floors: i8,
     pub current_floor: i8,
     pub layout: HashMap<(i8, i8, i8), Tile>,
+    pub monster_data: HashMap<(i8, i8, i8), i8>,
 }
 
 impl Castle {
@@ -43,6 +45,7 @@ impl Castle {
         let floors = choose_random_value((MIN_FLOORS..MAX_FLOORS).collect());
         let mut layout: HashMap<(i8, i8, i8), Tile> = HashMap::new();
         Self::populate_layout(&mut layout, width, depth, floors);
+        let monster_data = Self::generate_monster_data(&layout, floors);
 
         Self {
             width,
@@ -50,6 +53,7 @@ impl Castle {
             floors,
             current_floor: 0,
             layout,
+            monster_data,
         }
     }
 
@@ -57,7 +61,6 @@ impl Castle {
         let mut rng = rand::rng();
         // Assume everything is equally weighted to give greater
         // precedence to Monster (4/6)
-
         let reveals: [Tile; 6] = [
             Tile::Door(Reveal::Monster),
             Tile::Door(Reveal::Monster),
@@ -67,17 +70,13 @@ impl Castle {
             Tile::Door(Reveal::Genie),
         ];
 
-        // Now that derive is used for the Copy trait, we can now bitwise copy
-        // to bitwise copy the first element to another stack memory address
-        // if Vec<Tile> = !vec[...] was used, instead it would be a bitwise copy
-        // of the data on the heap to a version on the stack
         *reveals.choose(&mut rng).unwrap()
     }
 
     fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
         for floor in 0..floors {
-            let x = choose_random_value((0..width).step_by(2).collect());
-            let y = choose_random_value((0..depth).step_by(2).collect());
+            let x = choose_random_value((1..width).step_by(2).collect());
+            let y = choose_random_value((1..depth).step_by(2).collect());
 
             (*layout).insert((x, y, floor), Tile::Door(Reveal::Exit));
         }
@@ -90,8 +89,8 @@ impl Castle {
         floors: i8,
     ) {
         for floor in 0..floors {
-            let mut possible_x_coordinates: Vec<i8> = (0..width).step_by(2).collect();
-            let mut possible_y_coordinates: Vec<i8> = (0..depth).step_by(2).collect();
+            let mut possible_x_coordinates: Vec<i8> = (1..width).step_by(2).collect();
+            let mut possible_y_coordinates: Vec<i8> = (1..depth).step_by(2).collect();
 
             let exit_coordinate =
                 filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Exit))[0];
@@ -116,7 +115,7 @@ impl Castle {
                         continue;
                     }
 
-                    if (i + j) % 2 == 0 {
+                    if i % 2 != 0 && j % 2 != 0 {
                         (*layout).insert((i, j, k), Self::choose_random_door());
                     } else {
                         (*layout).insert((i, j, k), Tile::Floor);
@@ -126,11 +125,34 @@ impl Castle {
         }
     }
 
+    fn generate_monster_data(
+        layout: &HashMap<(i8, i8, i8), Tile>,
+        floors: i8,
+    ) -> HashMap<(i8, i8, i8), i8> {
+        let mut monster_data = HashMap::<(i8, i8, i8), i8>::new();
+        let mut monster_hp: Vec<i8> = (1..=5).collect();
+
+        for floor in 0..floors {
+            let coordinates =
+                filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Monster));
+            for coordinate in coordinates {
+                monster_data.insert(coordinate, choose_random_value(monster_hp.clone()));
+            }
+
+            // Increment by 5, i8 range allows -127 to 128
+            // Mac number of floors is 6 so max hp will 35 for monsters, within range
+            monster_hp = monster_hp.iter().map(|x| x + 5).collect::<Vec<i8>>();
+        }
+
+        monster_data
+    }
+
     pub fn check_object(&self, x: i8, y: i8, z: i8) -> &'static str {
         match self.layout.get(&(x, y, z)).unwrap() {
             Tile::Door(Reveal::Monster) => "Monster",
             Tile::Door(Reveal::Genie) => "Genie",
             Tile::Door(Reveal::Fairy) => "Fairy",
+            Tile::Door(Reveal::Empty) => "Empty",
             Tile::Door(Reveal::Exit) => "Exit",
             Tile::Merchant => "Merchant",
             Tile::Floor => "Floor",

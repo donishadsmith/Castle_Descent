@@ -48,6 +48,7 @@ class Castle:
                 self.objects = {k: i for k in cells}
             else:
                 self.objects.update({k: i for k in cells})
+
             coord -= set(cells)
 
         # Goal

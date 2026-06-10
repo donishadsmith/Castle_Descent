@@ -23,7 +23,7 @@ impl Zombie {
     pub fn spawn(castle: &Castle, player: &Player) -> Self {
         let current_position = Self::select_initial_location(castle, player);
         let distance_from_player =
-            Self::chebyshev_distance(&current_position, &player.current_position);
+            Self::approximate_euclidean_distance(&current_position, &player.current_position) as i8;
 
         Zombie {
             status: ZombieStatus::NotFrozen(Status::Active),
@@ -33,20 +33,23 @@ impl Zombie {
         }
     }
 
-    pub fn chebyshev_distance(a: &(i8, i8, i8), b: &(i8, i8, i8)) -> i8 {
-        let x = (b.0 - a.0).abs();
-        let y = (b.1 - a.1).abs();
+    pub fn approximate_euclidean_distance(a: &(i8, i8, i8), b: &(i8, i8, i8)) -> i16 {
+        let mut x = (b.0 - a.0) as f32;
+        let mut y = (b.1 - a.1) as f32;
 
-        x.max(y)
+        x *= x;
+        y *= y;
+
+        (x + y).sqrt().round() as i16
     }
 
     fn select_initial_location(castle: &Castle, player: &Player) -> (i8, i8, i8) {
-        let mut distance_hashmap: HashMap<(i8, i8, i8), i8> = HashMap::new();
+        let mut distance_hashmap: HashMap<(i8, i8, i8), i16> = HashMap::new();
         for key in castle.layout.keys() {
             if matches!(castle.layout.get(key).unwrap(), Tile::Floor) {
                 distance_hashmap.insert(
                     key.clone(),
-                    Self::chebyshev_distance(&player.current_position, &key),
+                    Self::approximate_euclidean_distance(&player.current_position, &key),
                 );
             }
         }
