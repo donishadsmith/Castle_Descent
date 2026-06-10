@@ -59,7 +59,7 @@ impl Zombie {
         // Will never be None
         distance_hashmap
             .into_iter()
-            .find_map(|(key, val)| if val == max_val { Some(key) } else { None })
+            .find_map(|(key, val)| (val == max_val).then_some(key))
             .unwrap()
     }
 
