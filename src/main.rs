@@ -7,16 +7,16 @@ use Castle_Descent::{
     zombie::{Zombie, ZombieStatus},
 };
 
+const TILE_SIZE: f32 = 32.0;
+const PLAYER_SPEED: f32 = 0.10;
+const ZOMBIE_SPEED: f32 = 0.90;
+
 enum GameState {
     Win,
     Lose,
     Paused,
     Active,
 }
-
-const TILE_SIZE: f32 = 32.0;
-const PLAYER_SPEED: f32 = 0.10;
-const ZOMBIE_SPEED: f32 = 0.90;
 
 // Will be used as an initializer of a few things
 fn initialize() -> (Castle, Player, Zombie) {
@@ -25,6 +25,15 @@ fn initialize() -> (Castle, Player, Zombie) {
     let zombie = Zombie::spawn(&castle, &player);
 
     (castle, player, zombie)
+}
+
+fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
+    if matches!(
+        key_press,
+        KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
+    ) {
+        player.update_position(key_press, castle);
+    }
 }
 
 fn player_caught(player: &Player, zombie: &Zombie) -> bool {
@@ -77,14 +86,6 @@ fn check_game_status(
     }
 }
 
-fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
-    if matches!(
-        key_press,
-        KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
-    ) {
-        player.update_position(key_press, castle);
-    }
-}
 
 #[macroquad::main("Castle Descent")]
 async fn main() {
