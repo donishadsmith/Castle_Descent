@@ -86,7 +86,6 @@ fn check_game_status(
     }
 }
 
-
 #[macroquad::main("Castle Descent")]
 async fn main() {
     let (mut castle, mut player, mut zombie) = initialize();
