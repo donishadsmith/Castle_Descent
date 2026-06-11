@@ -1,18 +1,11 @@
-use std::collections::HashMap;
-
-use rand::prelude::*;
-
 use crate::{
     castle::{Castle, Reveal, Tile},
     player::Player,
     zombie::Zombie,
 };
-
-pub enum Status {
-    Active,
-    Lose,
-    Win,
-}
+use macroquad::input::KeyCode;
+use rand::prelude::*;
+use std::collections::HashMap;
 
 pub trait Descent {
     fn increment_floor(&mut self) -> &mut i8;
@@ -52,40 +45,12 @@ pub fn filter_possible_coordinates(
     filtered_keys
 }
 
-fn player_caught(player: &Player, zombie: &Zombie) -> bool {
-    player.current_position == zombie.current_position
-}
-
-fn reached_final_exit(castle: &Castle, player: &Player) -> bool {
-    if player.current_position.2 != castle.max_floors() {
-        false
-    } else {
-        // There will always be one exit
-        let exit_coordinate = filter_possible_coordinates(
-            &castle.layout,
-            castle.max_floors(),
-            Tile::Door(Reveal::Exit),
-        )[0];
-        if (exit_coordinate.0 - player.current_position.0) == 0
-            && (exit_coordinate.1 - player.current_position.1) == 0
-        {
-            true
-        } else {
-            false
-        }
-    }
-}
-
-fn player_dead(player: &Player) -> bool {
-    player.hp <= 0
-}
-
-pub fn check_game_status(castle: &Castle, player: &Player, zombie: &Zombie) -> Status {
-    if player_caught(&player, &zombie) || player_dead(&player) {
-        Status::Lose
-    } else if reached_final_exit(&castle, &player) {
-        Status::Win
-    } else {
-        Status::Active
+pub fn get_direction(direction: KeyCode) -> (i8, i8, i8) {
+    match direction {
+        KeyCode::Left => (-1, 0, 0),
+        KeyCode::Right => (1, 0, 0),
+        KeyCode::Down => (0, 1, 0),
+        KeyCode::Up => (0, -1, 0),
+        _ => (0, 0, 0),
     }
 }
