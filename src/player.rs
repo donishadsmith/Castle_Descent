@@ -1,15 +1,21 @@
 use std::collections::HashMap;
 
 use crate::{
-    castle::{Castle, Tile},
+    castle::{Castle, Reveal, Tile},
     merchant::Item,
-    movement::Descent,
-    utils::{Status, choose_random_coordinate, filter_possible_coordinates},
+    utils::{Descent, Status, choose_random_coordinate, filter_possible_coordinates},
 };
 
 pub enum PlayerPlacement {
     Initialize,
     NextLevel,
+}
+
+pub enum PlayerController {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 pub struct Player {
@@ -65,8 +71,42 @@ impl Player {
         }
     }
 
-    pub fn caught(&mut self) {
-        self.status = Status::Lose
+    // Only increment by grid movements of +- 1 instead of float movement
+    pub fn update_position(&mut self, controller: PlayerController, castle: &Castle) {
+        let position_tuple = match controller {
+            PlayerController::Left => (-1, 0),
+            PlayerController::Right => (1, 0),
+            PlayerController::Down => (0, -1),
+            PlayerController::Up => (0, 1),
+        };
+
+        let current_coordinate = (
+            self.current_position.0 + position_tuple.0,
+            self.current_position.1 + position_tuple.1,
+        );
+        let object = castle.get_object(
+            current_coordinate.0,
+            current_coordinate.1,
+            self.current_position.2,
+        );
+
+        if matches!(object, Some(Tile::Floor)) || matches!(object, Some(Tile::Door(Reveal::Empty)))
+        {
+            (*self).current_position.0 += position_tuple.0;
+            (*self).current_position.1 += position_tuple.1;
+        } else if object.is_none() {
+            // Out of bounds, perform a wrap. Castle coordinated go from 0 to
+            // max - 1, hence modulus should put max to 0 and -1 to max - 1
+            // Only player allowed to wrap
+            match controller {
+                PlayerController::Left | PlayerController::Right => {
+                    (*self).current_position.0 = current_coordinate.0.rem_euclid(castle.width);
+                }
+                PlayerController::Down | PlayerController::Up => {
+                    (*self).current_position.1 = current_coordinate.1.rem_euclid(castle.depth);
+                }
+            }
+        }
     }
 }
 

@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::{
-    movement::Descent,
-    utils::{filter_possible_coordinates, prelude::*},
-};
+use crate::utils::{Descent, filter_possible_coordinates, prelude::*};
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -95,7 +92,7 @@ impl Castle {
             let exit_coordinate =
                 filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Exit))[0];
             possible_x_coordinates.retain(|&x| x != exit_coordinate.0);
-            possible_y_coordinates.retain(|&y| y != exit_coordinate.0);
+            possible_y_coordinates.retain(|&y| y != exit_coordinate.1);
 
             let x = choose_random_value(possible_x_coordinates);
             let y = choose_random_value(possible_y_coordinates);
@@ -147,16 +144,12 @@ impl Castle {
         monster_data
     }
 
-    pub fn check_object(&self, x: i8, y: i8, z: i8) -> &'static str {
-        match self.layout.get(&(x, y, z)).unwrap() {
-            Tile::Door(Reveal::Monster) => "Monster",
-            Tile::Door(Reveal::Genie) => "Genie",
-            Tile::Door(Reveal::Fairy) => "Fairy",
-            Tile::Door(Reveal::Empty) => "Empty",
-            Tile::Door(Reveal::Exit) => "Exit",
-            Tile::Merchant => "Merchant",
-            Tile::Floor => "Floor",
-        }
+    pub fn get_object(&self, x: i8, y: i8, z: i8) -> Option<Tile> {
+        self.layout.get(&(x, y, z)).copied()
+    }
+
+    pub fn max_floors(&self) -> i8 {
+        self.floors - 1
     }
 }
 

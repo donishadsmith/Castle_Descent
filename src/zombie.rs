@@ -1,10 +1,11 @@
+//https://www.gamedeveloper.com/programming/movement-prediction
+
 use std::collections::HashMap;
 
 use crate::{
     castle::{Castle, Tile},
-    movement::Descent,
     player::Player,
-    utils::Status,
+    utils::{Descent, Status},
 };
 
 pub enum ZombieStatus {
@@ -48,15 +49,14 @@ impl Zombie {
         for key in castle.layout.keys() {
             if matches!(castle.layout.get(key).unwrap(), Tile::Floor) {
                 distance_hashmap.insert(
-                    key.clone(),
+                    *key,
                     Self::approximate_euclidean_distance(&player.current_position, &key),
                 );
             }
         }
 
-        let max_val = distance_hashmap.values().max().unwrap().clone();
+        let max_val = *distance_hashmap.values().max().unwrap();
 
-        // Will never be None
         distance_hashmap
             .into_iter()
             .find_map(|(key, val)| (val == max_val).then_some(key))
@@ -64,12 +64,7 @@ impl Zombie {
     }
 
     pub fn change_status(&mut self, status: ZombieStatus) {
-        self.status = match status {
-            ZombieStatus::NotFrozen(Status::Active) => ZombieStatus::NotFrozen(Status::Active),
-            ZombieStatus::NotFrozen(Status::Win) => ZombieStatus::NotFrozen(Status::Win),
-            ZombieStatus::NotFrozen(Status::Lose) => ZombieStatus::NotFrozen(Status::Lose),
-            ZombieStatus::Frozen => ZombieStatus::Frozen,
-        }
+        self.status = status;
     }
 }
 

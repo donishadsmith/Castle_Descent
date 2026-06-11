@@ -14,6 +14,14 @@ pub enum Status {
     Win,
 }
 
+pub trait Descent {
+    fn increment_floor(&mut self) -> &mut i8;
+
+    fn descend(&mut self) {
+        *self.increment_floor() += 1
+    }
+}
+
 pub mod prelude {
     use rand::prelude::*;
 
@@ -45,21 +53,19 @@ pub fn filter_possible_coordinates(
 }
 
 fn player_caught(player: &Player, zombie: &Zombie) -> bool {
-    let val = (
-        (player.current_position.0 - zombie.current_position.0).abs(),
-        (player.current_position.1 - zombie.current_position.1).abs(),
-    );
-
-    (val.0 + val.1) == 0
+    player.current_position == zombie.current_position
 }
 
 fn reached_final_exit(castle: &Castle, player: &Player) -> bool {
-    if player.current_position.2 != castle.floors {
+    if player.current_position.2 != castle.max_floors() {
         false
     } else {
         // There will always be one exit
-        let exit_coordinate =
-            filter_possible_coordinates(&castle.layout, castle.floors, Tile::Door(Reveal::Exit))[0];
+        let exit_coordinate = filter_possible_coordinates(
+            &castle.layout,
+            castle.max_floors(),
+            Tile::Door(Reveal::Exit),
+        )[0];
         if (exit_coordinate.0 - player.current_position.0) == 0
             && (exit_coordinate.1 - player.current_position.1) == 0
         {

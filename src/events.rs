@@ -1,5 +1,5 @@
-struct Fairy {};
+struct Fairy {}
 
-struct Genie {};
+struct Genie {}
 
-struct Monster {};
+struct Monster {}
