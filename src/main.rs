@@ -64,7 +64,7 @@ fn player_dead(player: &Player) -> bool {
     player.hp <= 0
 }
 
-fn next_level<Entity: Descent>(mut object: Entity) {
+fn next_level<Entity: Descent>(object: &mut Entity) {
     object.descend();
 }
 
