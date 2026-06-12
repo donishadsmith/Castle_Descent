@@ -26,6 +26,24 @@ pub enum Tile {
     Merchant,
 }
 
+impl Tile {
+    pub fn choose_random_door() -> Tile {
+        let mut rng = rand::rng();
+        // Assume everything is equally weighted to give greater
+        // precedence to Monster (4/6)
+        let reveals: [Tile; 6] = [
+            Tile::Door(Reveal::Monster),
+            Tile::Door(Reveal::Monster),
+            Tile::Door(Reveal::Monster),
+            Tile::Door(Reveal::Monster),
+            Tile::Door(Reveal::Fairy),
+            Tile::Door(Reveal::Genie),
+        ];
+
+        *reveals.choose(&mut rng).unwrap()
+    }
+}
+
 pub struct Castle {
     pub width: i8,
     pub depth: i8,
@@ -52,22 +70,6 @@ impl Castle {
             layout,
             monster_data,
         }
-    }
-
-    fn choose_random_door() -> Tile {
-        let mut rng = rand::rng();
-        // Assume everything is equally weighted to give greater
-        // precedence to Monster (4/6)
-        let reveals: [Tile; 6] = [
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Fairy),
-            Tile::Door(Reveal::Genie),
-        ];
-
-        *reveals.choose(&mut rng).unwrap()
     }
 
     fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
@@ -113,7 +115,7 @@ impl Castle {
                     }
 
                     if i % 2 != 0 && j % 2 != 0 {
-                        (*layout).insert((i, j, k), Self::choose_random_door());
+                        (*layout).insert((i, j, k), Tile::choose_random_door());
                     } else {
                         (*layout).insert((i, j, k), Tile::Floor);
                     }
