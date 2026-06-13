@@ -4,7 +4,10 @@ use CastleDescent::{
     castle::{Castle, Tile},
     controller::Controller,
     events::prelude::EventID,
-    player::{Player, PlayerStatus},
+    player::{
+        Player,
+        PlayerStatus::{self, Event},
+    },
     utils::prelude::*,
     zombie::{Zombie, ZombieStatus},
 };
@@ -54,7 +57,14 @@ fn check_game_status(
     }
 }
 
-fn draw_transparant_screen(first_text: &str, second_text: &str) {
+fn draw_transparant_screen(
+    first_text: &str,
+    second_text: &str,
+    first_x_shift: f32,
+    second_x_shift: f32,
+    first_y_shift: f32,
+    second_y_shift: f32,
+) {
     draw_rectangle(
         0.0,
         0.0,
@@ -64,15 +74,15 @@ fn draw_transparant_screen(first_text: &str, second_text: &str) {
     );
     draw_text(
         first_text,
-        screen_width() / 2.0 - 100.0,
-        screen_height() / 2.0,
+        screen_width() / 2.0 - first_x_shift,
+        screen_height() / 2.0 + first_y_shift,
         30.0,
         WHITE,
     );
     draw_text(
         second_text,
-        screen_width() / 2.0 - 140.0,
-        screen_height() / 2.0 + 40.0,
+        screen_width() / 2.0 - second_x_shift,
+        screen_height() / 2.0 + second_y_shift,
         20.0,
         WHITE,
     );
@@ -86,15 +96,25 @@ fn reset_game(game_state: &mut GameState) -> bool {
             "You Lost."
         };
 
-        draw_transparant_screen(&text_str, &"Press 'r' to restart.")
+        draw_transparant_screen(
+            &text_str,
+            &"Press 'r' to restart or 'q' to quit.",
+            80.0,
+            160.0,
+            -50.0,
+            -10.0,
+        )
     }
 
-    if Controller::get_key() == Some(KeyCode::R)
-        && matches!(game_state, GameState::Win | GameState::Lose)
-    {
+    let Some(key) = Controller::get_key() else {
+        return false;
+    };
+
+    if key == KeyCode::R && matches!(game_state, GameState::Win | GameState::Lose) {
         *game_state = GameState::Active;
         true
     } else {
+        Controller::quit(&key, game_state);
         false
     }
 }
@@ -209,6 +229,13 @@ async fn main() {
 
                     event.activate(&mut player, &mut zombie, &mut game_state)
                 }
+                Tile::Shop(merchant @ _) => {}
+                Tile::Door(event @ EventID::Empty) => {
+                    event.activate(&mut player, &mut zombie, &mut game_state)
+                }
+                Tile::Door(event @ EventID::Exit) => {
+                    event.activate(&mut player, &mut zombie, &mut game_state)
+                }
                 _ => (),
             };
         }
@@ -230,7 +257,14 @@ async fn main() {
         }
 
         if matches!(game_state, GameState::Paused) {
-            draw_transparant_screen(&"Game Paused", &"Press any key to continue.");
+            draw_transparant_screen(
+                &"Game Paused",
+                &"Press any key to continue.",
+                100.0,
+                140.0,
+                -50.0,
+                -10.0,
+            );
 
             zombie.update_status(ZombieStatus::Frozen)
         }
