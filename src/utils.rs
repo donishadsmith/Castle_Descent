@@ -1,15 +1,18 @@
 // TODO: Just keep everything in the prelude for now for shorter import
 // statements and incase things need to be added, then clean up later.
 pub mod prelude {
-    use crate::castle::{Castle, Tile};
-    use crate::events::prelude::EventID;
-    use crate::player::Player;
-    use crate::zombie::Zombie;
-    use macroquad::input::KeyCode;
-    use rand::prelude::*;
     use std::collections::HashMap;
 
-    #[derive(PartialEq)]
+    use macroquad::input::KeyCode;
+    use rand::prelude::*;
+
+    use crate::{
+        castle::{Castle, Tile},
+        events::prelude::EventID,
+        player::Player,
+    };
+
+    #[derive(PartialEq, Debug)]
     pub enum GameState {
         Win,
         Lose,

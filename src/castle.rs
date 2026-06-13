@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::events::prelude::*;
-use crate::player::Player;
-use crate::utils::prelude::*;
-use crate::zombie::Zombie;
+use crate::{events::prelude::*, merchant::Merchant, utils::prelude::*};
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -17,7 +14,7 @@ const MAX_LENGTH: i8 = 20;
 pub enum Tile {
     Door(EventID),
     Floor,
-    Merchant,
+    Shop(Merchant),
 }
 
 impl Tile {
@@ -82,7 +79,10 @@ impl Castle {
             let merch_x = choose_random_value(&merch_x_coords);
             let merch_y = choose_random_value(&merch_y_coords);
 
-            layout.insert(Coordinate::new(merch_x, merch_y, floor), Tile::Merchant);
+            layout.insert(
+                Coordinate::new(merch_x, merch_y, floor),
+                Tile::Shop(Merchant {}),
+            );
         }
     }
 

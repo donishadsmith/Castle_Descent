@@ -4,3 +4,8 @@ pub enum Item {
     Potion,
     MagnifyingGlass,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Merchant {}
+
+impl Merchant {}

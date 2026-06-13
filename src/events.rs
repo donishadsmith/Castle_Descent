@@ -1,22 +1,13 @@
 pub mod prelude {
-    use macroquad::input::{KeyCode, get_keys_down, get_keys_pressed};
+    use macroquad::input::KeyCode;
     use strum::Display;
 
-    use crate::player::{Player, PlayerStatus};
-    use crate::utils::prelude::*;
-    use crate::zombie::Zombie;
-
-    fn escape_event(player: &mut Player) {
-        // Eventually will replace with logic for running away
-        if matches!(get_keys_pressed().iter().next().cloned(), Some(KeyCode::T))
-            || matches!(get_keys_down().iter().next().cloned(), Some(KeyCode::T))
-        {
-            player.update_status(PlayerStatus::Roam);
-            player.intended_coordinate = player.current_coordinate;
-        } else {
-            player.update_status(PlayerStatus::Event);
-        }
-    }
+    use crate::{
+        controller::Controller,
+        player::{Player, PlayerStatus},
+        utils::prelude::*,
+        zombie::Zombie,
+    };
 
     #[derive(Clone, Copy, Debug, Display, PartialEq)]
     pub enum EventID {
@@ -35,6 +26,14 @@ pub mod prelude {
             zombie: &mut Zombie,
             game_state: &mut GameState,
         ) {
+            if *game_state != GameState::Active {
+                return;
+            }
+
+            let Some(key) = Controller::get_key() else {
+                return;
+            };
+
             match self {
                 EventID::MonsterEvent(monster @ _) => {
                     if matches!(monster.status, EventStatus::Uninitiated) {
@@ -45,7 +44,7 @@ pub mod prelude {
                         // function that replaces with empty door event
                     }
 
-                    escape_event(player)
+                    Self::escape_event(player, &key);
                 }
                 EventID::FairyEvent(fairy @ _) => {
                     if matches!(fairy.status, EventStatus::Uninitiated) {
@@ -56,7 +55,7 @@ pub mod prelude {
                         // function that replaces with empty door event
                     }
 
-                    escape_event(player)
+                    Self::escape_event(player, &key)
                 }
                 EventID::GenieEvent(genie @ _) => {
                     if matches!(genie.status, EventStatus::Uninitiated) {
@@ -67,10 +66,20 @@ pub mod prelude {
                         // function that replaces with empty door event
                     }
 
-                    escape_event(player)
+                    Self::escape_event(player, &key)
                 }
                 EventID::Empty => {}
                 EventID::Exit => {}
+            }
+        }
+
+        fn escape_event(player: &mut Player, key: &KeyCode) {
+            // Eventually will replace with logic for running away
+            if matches!(key, KeyCode::T) {
+                player.update_status(PlayerStatus::Roam);
+                player.intended_coordinate = player.current_coordinate;
+            } else {
+                player.update_status(PlayerStatus::Event);
             }
         }
     }

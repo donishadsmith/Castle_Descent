@@ -54,6 +54,51 @@ fn check_game_status(
     }
 }
 
+fn draw_transparant_screen(first_text: &str, second_text: &str) {
+    draw_rectangle(
+        0.0,
+        0.0,
+        screen_width(),
+        screen_height(),
+        Color::new(0.0, 0.0, 0.0, 0.7),
+    );
+    draw_text(
+        first_text,
+        screen_width() / 2.0 - 100.0,
+        screen_height() / 2.0,
+        30.0,
+        WHITE,
+    );
+    draw_text(
+        second_text,
+        screen_width() / 2.0 - 140.0,
+        screen_height() / 2.0 + 40.0,
+        20.0,
+        WHITE,
+    );
+}
+
+fn reset_game(game_state: &mut GameState) -> bool {
+    if matches!(game_state, GameState::Win | GameState::Lose) {
+        let text_str = if *game_state == GameState::Win {
+            "You Won!"
+        } else {
+            "You Lost."
+        };
+
+        draw_transparant_screen(&text_str, &"Press 'r' to restart.")
+    }
+
+    if Controller::get_key() == Some(KeyCode::R)
+        && matches!(game_state, GameState::Win | GameState::Lose)
+    {
+        *game_state = GameState::Active;
+        true
+    } else {
+        false
+    }
+}
+
 #[macroquad::main("Castle Descent")]
 async fn main() {
     //set_fullscreen(true);
@@ -76,9 +121,6 @@ async fn main() {
     let player_texture = Texture2D::from_file_with_format(player_bytes, None);
     let zombie_texture = Texture2D::from_file_with_format(zombie_bytes, None);
 
-    let mut player_accumulator: f32 = 0.0;
-    let mut zombie_accumulator: f32 = 0.0;
-
     let scale_params = DrawTextureParams {
         dest_size: Some(vec2(TILE_SIZE, TILE_SIZE)),
         ..Default::default()
@@ -86,40 +128,37 @@ async fn main() {
 
     let mut game_state = GameState::Active;
 
-    let final_game_state = loop {
-        if matches!(
-            game_state,
-            GameState::Quit | GameState::Win | GameState::Lose
-        ) {
+    loop {
+        clear_background(BLACK);
+        if game_state == GameState::Quit {
             break;
         }
 
         let dt = get_frame_time().min(0.25);
-
-        clear_background(BLACK);
-
         for (coordinate, tile) in &castle.layout {
-            if coordinate.z == castle.current_floor {
-                match tile {
-                    Tile::Floor => {
-                        draw_rectangle(
-                            coordinate.to_float(Component::X) * TILE_SIZE,
-                            coordinate.to_float(Component::Y) * TILE_SIZE,
-                            TILE_SIZE,
-                            TILE_SIZE,
-                            BLACK,
-                        );
-                    }
-                    Tile::Merchant => {
-                        draw_asset(&merchant_texture, *coordinate, scale_params.clone());
-                    }
-                    Tile::Door(_) => {
-                        let is_active_event = *coordinate == player.intended_coordinate
-                            && matches!(player.status, PlayerStatus::Event);
+            if coordinate.z != castle.current_floor {
+                continue;
+            }
 
-                        if !is_active_event {
-                            draw_asset(&door_texture, *coordinate, scale_params.clone());
-                        }
+            match tile {
+                Tile::Floor => {
+                    draw_rectangle(
+                        coordinate.to_float(Component::X) * TILE_SIZE,
+                        coordinate.to_float(Component::Y) * TILE_SIZE,
+                        TILE_SIZE,
+                        TILE_SIZE,
+                        BLACK,
+                    );
+                }
+                Tile::Shop(_) => {
+                    draw_asset(&merchant_texture, *coordinate, scale_params.clone());
+                }
+                Tile::Door(_) => {
+                    let is_active_event = *coordinate == player.intended_coordinate
+                        && matches!(player.status, PlayerStatus::Event);
+
+                    if !is_active_event {
+                        draw_asset(&door_texture, *coordinate, scale_params.clone());
                     }
                 }
             }
@@ -141,89 +180,66 @@ async fn main() {
 
         Controller::roam(&mut player, &castle, &dt, &mut game_state);
 
-        let on_event_tile = castle
-            .get_object(player.intended_coordinate)
-            .is_some_and(|tile| !matches!(tile, Tile::Floor));
-        if on_event_tile {
-            let tile = castle
-                .get_mutable_object(player.intended_coordinate)
-                .unwrap();
+        if let Some(tile) = castle.get_mutable_object(player.intended_coordinate) {
+            match tile {
+                Tile::Door(event @ EventID::MonsterEvent(_)) => {
+                    draw_asset(
+                        &monster_texture,
+                        player.intended_coordinate,
+                        scale_params.clone(),
+                    );
 
-            let is_playable = matches!(
-                tile,
-                Tile::Door(EventID::MonsterEvent(_))
-                    | Tile::Door(EventID::FairyEvent(_))
-                    | Tile::Door(EventID::GenieEvent(_))
-            );
-            if is_playable {
-                match tile {
-                    Tile::Door(event @ EventID::MonsterEvent(_)) => {
-                        draw_asset(
-                            &monster_texture,
-                            player.intended_coordinate,
-                            scale_params.clone(),
-                        );
+                    event.activate(&mut player, &mut zombie, &mut game_state)
+                }
+                Tile::Door(event @ EventID::FairyEvent(_)) => {
+                    draw_asset(
+                        &fairy_texture,
+                        player.intended_coordinate,
+                        scale_params.clone(),
+                    );
 
-                        event.activate(&mut player, &mut zombie, &mut game_state)
-                    }
-                    Tile::Door(event @ EventID::FairyEvent(_)) => {
-                        draw_asset(
-                            &fairy_texture,
-                            player.intended_coordinate,
-                            scale_params.clone(),
-                        );
-                        event.activate(&mut player, &mut zombie, &mut game_state)
-                    }
-                    Tile::Door(event @ EventID::GenieEvent(_)) => {
-                        draw_asset(
-                            &genie_texture,
-                            player.intended_coordinate,
-                            scale_params.clone(),
-                        );
-                        event.activate(&mut player, &mut zombie, &mut game_state)
-                    }
-                    _ => (),
-                };
-            }
-        }
+                    event.activate(&mut player, &mut zombie, &mut game_state)
+                }
+                Tile::Door(event @ EventID::GenieEvent(_)) => {
+                    draw_asset(
+                        &genie_texture,
+                        player.intended_coordinate,
+                        scale_params.clone(),
+                    );
 
-        if matches!(game_state, GameState::Paused) {
-            draw_rectangle(
-                0.0,
-                0.0,
-                screen_width(),
-                screen_height(),
-                Color::new(0.0, 0.0, 0.0, 0.7),
-            );
-            draw_text(
-                "Game Paused",
-                screen_width() / 2.0 - 100.0,
-                screen_height() / 2.0,
-                30.0,
-                WHITE,
-            );
-            draw_text(
-                "Press any key to continue",
-                screen_width() / 2.0 - 140.0,
-                screen_height() / 2.0 + 40.0,
-                20.0,
-                WHITE,
-            );
-            zombie.update_status(ZombieStatus::Frozen)
+                    event.activate(&mut player, &mut zombie, &mut game_state)
+                }
+                _ => (),
+            };
         }
 
         if matches!(game_state, GameState::Active) && matches!(player.status, PlayerStatus::Roam) {
-            zombie_accumulator += dt;
+            zombie.accumulator += dt;
 
-            if zombie_accumulator >= ZOMBIE_DISPLACEMENT {
+            if zombie.accumulator >= ZOMBIE_DISPLACEMENT {
                 zombie.update_status(ZombieStatus::Roam);
                 zombie.chase_player(&player, &castle);
 
-                zombie_accumulator = 0.0;
+                zombie.accumulator = 0.0;
             }
         }
 
-        game_state = check_game_status(&castle, &player, &zombie, game_state);
+        Controller::mutate_game_state(&mut game_state);
+        if !matches!(game_state, GameState::Win | GameState::Lose) {
+            game_state = check_game_status(&castle, &player, &zombie, game_state);
+        }
+
+        if matches!(game_state, GameState::Paused) {
+            draw_transparant_screen(&"Game Paused", &"Press any key to continue.");
+
+            zombie.update_status(ZombieStatus::Frozen)
+        }
+
+        if reset_game(&mut game_state) {
+            clear_background(BLACK);
+            (castle, player, zombie) = initialize();
+        }
+
         next_frame().await
-    };
+    }
 }
