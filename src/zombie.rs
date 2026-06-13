@@ -74,12 +74,11 @@ impl Zombie {
             }
         }
 
-        let max_val = *distance_hashmap.values().max().unwrap();
-
         distance_hashmap
             .into_iter()
-            .find_map(|(key, val)| (val == max_val).then_some(key))
+            .max_by_key(|(c, v)| (*v, c.x, c.y))
             .unwrap()
+            .0
     }
 
     fn filter_possible_moves(possible_moves: Vec<Coordinate>, castle: &Castle) -> Vec<Coordinate> {
@@ -133,8 +132,6 @@ impl Zombie {
                         ),
                     );
                 }
-
-                let min_val = *distance_hashmap.values().min().unwrap();
 
                 self.current_coordinate = filtered_moves
                     .into_iter()
