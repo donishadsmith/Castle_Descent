@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::utils::{Descent, filter_possible_coordinates, prelude::*};
+use crate::events::prelude::*;
+use crate::player::Player;
+use crate::utils::prelude::*;
+use crate::zombie::Zombie;
 
 const MIN_FLOORS: i8 = 3;
 const MAX_FLOORS: i8 = 6;
@@ -11,36 +14,38 @@ const MIN_LENGTH: i8 = 10;
 const MAX_LENGTH: i8 = 20;
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
-pub enum Reveal {
-    Monster,
-    Fairy,
-    Genie,
+pub enum EventID {
+    MonsterEvent(Monster),
+    GenieEvent(Genie),
+    FairyEvent(Fairy),
     Empty,
     Exit,
 }
 
+// Just keep sequences in one implementation
+impl EventID {
+    fn activate(&mut self, player: &mut Player, zombie: &mut Zombie, castle: &mut Castle) {
+        match self {
+            EventID::MonsterEvent(monster) => {}
+            EventID::FairyEvent(fairy) => {}
+            EventID::GenieEvent(genie) => {}
+            EventID::Empty => {}
+            EventID::Exit => {}
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum Tile {
-    Door(Reveal),
+    Door(EventID),
     Floor,
     Merchant,
 }
 
 impl Tile {
-    pub fn choose_random_door() -> Tile {
+    pub fn choose_random_event_type() -> i8 {
         let mut rng = rand::rng();
-        // Assume everything is equally weighted to give greater
-        // precedence to Monster (4/6)
-        let reveals: [Tile; 6] = [
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Monster),
-            Tile::Door(Reveal::Fairy),
-            Tile::Door(Reveal::Genie),
-        ];
-
-        *reveals.choose(&mut rng).unwrap()
+        rng.random_range(1..=10)
     }
 }
 
@@ -49,18 +54,19 @@ pub struct Castle {
     pub depth: i8,
     pub floors: i8,
     pub current_floor: i8,
-    pub layout: HashMap<(i8, i8, i8), Tile>,
-    pub monster_data: HashMap<(i8, i8, i8), i8>,
+    pub layout: HashMap<Coordinate, Tile>,
 }
 
 impl Castle {
     pub fn generate() -> Self {
-        let width = choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
-        let depth = choose_random_value((MIN_LENGTH..MAX_LENGTH).collect());
-        let floors = choose_random_value((MIN_FLOORS..MAX_FLOORS).collect());
-        let mut layout: HashMap<(i8, i8, i8), Tile> = HashMap::new();
+        let mut rng = rand::rng();
+
+        let width = rng.random_range(MIN_LENGTH..MAX_LENGTH);
+        let depth = rng.random_range(MIN_LENGTH..MAX_LENGTH);
+        let floors = rng.random_range(MIN_FLOORS..MAX_FLOORS);
+
+        let mut layout: HashMap<Coordinate, Tile> = HashMap::new();
         Self::populate_layout(&mut layout, width, depth, floors);
-        let monster_data = Self::generate_monster_data(&layout, floors);
 
         Self {
             width,
@@ -68,86 +74,82 @@ impl Castle {
             floors,
             current_floor: 0,
             layout,
-            monster_data,
         }
     }
 
-    fn insert_exits(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
-        for floor in 0..floors {
-            let x = choose_random_value((1..width).step_by(2).collect());
-            let y = choose_random_value((1..depth).step_by(2).collect());
-
-            (*layout).insert((x, y, floor), Tile::Door(Reveal::Exit));
-        }
-    }
-
-    fn insert_merchants(
-        layout: &mut HashMap<(i8, i8, i8), Tile>,
+    fn insert_special_tiles(
+        layout: &mut HashMap<Coordinate, Tile>,
         width: i8,
         depth: i8,
         floors: i8,
     ) {
+        let base_x_coords: Vec<i8> = (1..width).step_by(2).collect();
+        let base_y_coords: Vec<i8> = (1..depth).step_by(2).collect();
+
         for floor in 0..floors {
-            let mut possible_x_coordinates: Vec<i8> = (1..width).step_by(2).collect();
-            let mut possible_y_coordinates: Vec<i8> = (1..depth).step_by(2).collect();
+            let exit_x = choose_random_value(&base_x_coords);
+            let exit_y = choose_random_value(&base_y_coords);
 
-            let exit_coordinate =
-                filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Exit))[0];
-            possible_x_coordinates.retain(|&x| x != exit_coordinate.0);
-            possible_y_coordinates.retain(|&y| y != exit_coordinate.1);
+            layout.insert(
+                Coordinate::new(exit_x, exit_y, floor),
+                Tile::Door(EventID::Exit),
+            );
 
-            let x = choose_random_value(possible_x_coordinates);
-            let y = choose_random_value(possible_y_coordinates);
+            let mut merch_x_coords = base_x_coords.clone();
+            let mut merch_y_coords = base_y_coords.clone();
 
-            (*layout).insert((x, y, floor), Tile::Merchant);
+            merch_x_coords.retain(|&x| x != exit_x);
+            merch_y_coords.retain(|&y| y != exit_y);
+
+            let merch_x = choose_random_value(&merch_x_coords);
+            let merch_y = choose_random_value(&merch_y_coords);
+
+            layout.insert(Coordinate::new(merch_x, merch_y, floor), Tile::Merchant);
         }
     }
 
-    fn populate_layout(layout: &mut HashMap<(i8, i8, i8), Tile>, width: i8, depth: i8, floors: i8) {
-        Self::insert_exits(layout, width, depth, floors);
-        Self::insert_merchants(layout, width, depth, floors);
+    fn populate_layout(layout: &mut HashMap<Coordinate, Tile>, width: i8, depth: i8, floors: i8) {
+        Self::insert_special_tiles(layout, width, depth, floors);
 
-        for i in 0..width {
-            for j in 0..depth {
-                for k in 0..floors {
-                    if (*layout).contains_key(&(i, j, k)) {
+        let mut monster_hp_range: Vec<i8> = (5..=10).collect();
+
+        for z in 0..floors {
+            for x in 0..width {
+                for y in 0..depth {
+                    if (*layout).contains_key(&Coordinate::new(x, y, z)) {
                         continue;
                     }
 
-                    if i % 2 != 0 && j % 2 != 0 {
-                        (*layout).insert((i, j, k), Tile::choose_random_door());
+                    if x % 2 != 0 && y % 2 != 0 {
+                        let event_data = match Tile::choose_random_event_type() {
+                            1..=8 => {
+                                let current_monster_hp = choose_random_value(&monster_hp_range);
+                                Tile::Door(EventID::MonsterEvent(Monster::spawn(
+                                    current_monster_hp,
+                                )))
+                            }
+                            9 => Tile::Door(EventID::FairyEvent(Fairy::spawn())),
+                            _ => Tile::Door(EventID::GenieEvent(Genie::spawn())),
+                        };
+                        (*layout).insert(Coordinate::new(x, y, z), event_data);
                     } else {
-                        (*layout).insert((i, j, k), Tile::Floor);
+                        (*layout).insert(Coordinate::new(x, y, z), Tile::Floor);
                     }
                 }
             }
-        }
-    }
-
-    fn generate_monster_data(
-        layout: &HashMap<(i8, i8, i8), Tile>,
-        floors: i8,
-    ) -> HashMap<(i8, i8, i8), i8> {
-        let mut monster_data = HashMap::<(i8, i8, i8), i8>::new();
-        let mut monster_hp: Vec<i8> = (1..=5).collect();
-
-        for floor in 0..floors {
-            let coordinates =
-                filter_possible_coordinates(&(*layout), floor, Tile::Door(Reveal::Monster));
-            for coordinate in coordinates {
-                monster_data.insert(coordinate, choose_random_value(monster_hp.clone()));
-            }
 
             // Increment by 5, i8 range allows -127 to 128
-            // Mac number of floors is 6 so max hp will 35 for monsters, within range
-            monster_hp = monster_hp.iter().map(|x| x + 5).collect::<Vec<i8>>();
+            // Max number of floors is 6 so max hp will 60 for monsters, within range
+            monster_hp_range = monster_hp_range.iter().map(|x| x + 5).collect::<Vec<i8>>();
         }
-
-        monster_data
     }
 
-    pub fn get_object(&self, x: i8, y: i8, z: i8) -> Option<Tile> {
-        self.layout.get(&(x, y, z)).copied()
+    pub fn get_object(&self, coordinate: Coordinate) -> Option<&Tile> {
+        self.layout.get(&coordinate)
+    }
+
+    pub fn get_mutable_object(&mut self, coordinate: Coordinate) -> Option<&mut Tile> {
+        self.layout.get_mut(&coordinate)
     }
 
     pub fn max_floors(&self) -> i8 {

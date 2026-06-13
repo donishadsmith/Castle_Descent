@@ -1,7 +1,7 @@
 use crate::{
-    castle::{Castle, Reveal, Tile},
+    castle::{Castle, EventID, Tile},
     merchant::Item,
-    utils::{Descent, choose_random_coordinate, filter_possible_coordinates, get_direction},
+    utils::prelude::*,
 };
 use macroquad::input::KeyCode;
 use std::collections::HashMap;
@@ -20,27 +20,32 @@ pub enum PlayerStatus {
     Hide,
 }
 
+impl StatusType for PlayerStatus {}
+
 pub struct Player {
     pub hp: i16,
     pub mana: i16,
     pub money: i32,
     pub attack_power: (i16, i16),
-    pub current_position: (i8, i8, i8),
+    pub current_coordinate: Coordinate,
+    pub intended_coordinate: Coordinate, // event is based on the intended coordinate
     pub inventory: HashMap<Item, i16>,
     pub status: PlayerStatus,
 }
 
 impl Player {
     pub fn spawn(castle: &Castle) -> Self {
-        let current_position =
+        let current_coordinate =
             Self::select_initial_location(castle, PlayerPlacement::Initialize, 0);
+        let intended_coordinate = current_coordinate;
 
         Self {
             hp: 100,
             mana: 100,
             money: 100,
             attack_power: (1, 5),
-            current_position,
+            current_coordinate,
+            intended_coordinate,
             inventory: HashMap::new(),
             status: PlayerStatus::Roam,
         }
@@ -50,7 +55,7 @@ impl Player {
         castle: &Castle,
         placement: PlayerPlacement,
         current_floor: i8,
-    ) -> (i8, i8, i8) {
+    ) -> Coordinate {
         let mut keys = match placement {
             PlayerPlacement::Initialize => {
                 filter_possible_coordinates(&castle.layout, current_floor, Tile::Floor)
@@ -63,44 +68,31 @@ impl Player {
         choose_random_coordinate(&mut keys)
     }
 
-    pub fn change_status(&mut self, status: PlayerStatus) {
-        self.status = match status {
-            PlayerStatus::Roam => PlayerStatus::Roam,
-            PlayerStatus::Win => PlayerStatus::Win,
-            PlayerStatus::Lose => PlayerStatus::Lose,
-            PlayerStatus::Inventory => PlayerStatus::Inventory,
-            PlayerStatus::Event => PlayerStatus::Event,
-            PlayerStatus::Hide => PlayerStatus::Hide,
-        }
-    }
-
     // Only increment by grid movements of +- 1 instead of float movement
     pub fn update_position(&mut self, direction: KeyCode, castle: &Castle) {
         let player_direction = get_direction(direction);
 
-        let current_coordinate = (
-            self.current_position.0 + player_direction.0,
-            self.current_position.1 + player_direction.1,
-        );
-        let object = castle.get_object(
-            current_coordinate.0,
-            current_coordinate.1,
-            self.current_position.2,
+        let new_coordinate = Coordinate::new(
+            self.current_coordinate.x + player_direction.x,
+            self.current_coordinate.y + player_direction.y,
+            self.current_coordinate.z,
         );
 
-        if matches!(object, Some(Tile::Floor) | Some(Tile::Door(Reveal::Empty))) {
-            (*self).current_position.0 += player_direction.0;
-            (*self).current_position.1 += player_direction.1;
+        self.intended_coordinate = new_coordinate;
+        let object = castle.get_object(new_coordinate);
+        if matches!(object, Some(Tile::Floor) | Some(Tile::Door(EventID::Empty))) {
+            (*self).current_coordinate.x += player_direction.x;
+            (*self).current_coordinate.y += player_direction.y;
         } else if object.is_none() {
             // Out of bounds, perform a wrap. Castle coordinated go from 0 to
             // max - 1, hence modulus should put max to 0 and -1 to max - 1
             // Only player allowed to wrap
             match direction {
                 KeyCode::Left | KeyCode::Right => {
-                    (*self).current_position.0 = current_coordinate.0.rem_euclid(castle.width);
+                    (*self).current_coordinate.x = new_coordinate.x.rem_euclid(castle.width);
                 }
                 KeyCode::Down | KeyCode::Up => {
-                    (*self).current_position.1 = current_coordinate.1.rem_euclid(castle.depth);
+                    (*self).current_coordinate.y = new_coordinate.y.rem_euclid(castle.depth);
                 }
                 _ => (),
             }
@@ -108,8 +100,17 @@ impl Player {
     }
 }
 
+impl Entity for Player {}
+
+impl EntityStatus for Player {
+    type Status = PlayerStatus;
+    fn current_status(&mut self) -> &mut PlayerStatus {
+        &mut self.status
+    }
+}
+
 impl Descent for Player {
     fn increment_floor(&mut self) -> &mut i8 {
-        &mut self.current_position.2
+        &mut self.current_coordinate.z
     }
 }
