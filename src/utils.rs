@@ -1,12 +1,22 @@
 // TODO: Just keep everything in the prelude for now for shorter import
 // statements and incase things need to be added, then clean up later.
 pub mod prelude {
-    use crate::castle::{Castle, EventID, Tile};
+    use crate::castle::{Castle, Tile};
+    use crate::events::prelude::EventID;
     use crate::player::Player;
     use crate::zombie::Zombie;
     use macroquad::input::KeyCode;
     use rand::prelude::*;
     use std::collections::HashMap;
+
+    #[derive(PartialEq)]
+    pub enum GameState {
+        Win,
+        Lose,
+        Paused,
+        Active,
+        Quit,
+    }
 
     pub enum Component {
         X,
@@ -63,7 +73,7 @@ pub mod prelude {
         }
     }
 
-    pub fn choose_random_value(mut values: &[i8]) -> i8 {
+    pub fn choose_random_value(values: &[i8]) -> i8 {
         let mut rng = rand::rng();
 
         *values.choose(&mut rng).unwrap()

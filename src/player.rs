@@ -1,5 +1,6 @@
 use crate::{
-    castle::{Castle, EventID, Tile},
+    castle::{Castle, Tile},
+    events::prelude::EventID,
     merchant::Item,
     utils::prelude::*,
 };
@@ -11,6 +12,7 @@ pub enum PlayerPlacement {
     NextLevel,
 }
 
+#[derive(PartialEq)]
 pub enum PlayerStatus {
     Roam,
     Win,
@@ -31,6 +33,7 @@ pub struct Player {
     pub intended_coordinate: Coordinate, // event is based on the intended coordinate
     pub inventory: HashMap<Item, i16>,
     pub status: PlayerStatus,
+    pub accumulator: f32,
 }
 
 impl Player {
@@ -48,6 +51,7 @@ impl Player {
             intended_coordinate,
             inventory: HashMap::new(),
             status: PlayerStatus::Roam,
+            accumulator: 0.0,
         }
     }
 

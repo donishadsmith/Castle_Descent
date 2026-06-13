@@ -14,28 +14,6 @@ const MIN_LENGTH: i8 = 10;
 const MAX_LENGTH: i8 = 20;
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
-pub enum EventID {
-    MonsterEvent(Monster),
-    GenieEvent(Genie),
-    FairyEvent(Fairy),
-    Empty,
-    Exit,
-}
-
-// Just keep sequences in one implementation
-impl EventID {
-    fn activate(&mut self, player: &mut Player, zombie: &mut Zombie, castle: &mut Castle) {
-        match self {
-            EventID::MonsterEvent(monster) => {}
-            EventID::FairyEvent(fairy) => {}
-            EventID::GenieEvent(genie) => {}
-            EventID::Empty => {}
-            EventID::Exit => {}
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum Tile {
     Door(EventID),
     Floor,

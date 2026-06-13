@@ -1,23 +1,16 @@
 use macroquad::prelude::*;
 
 use Castle_Descent::{
-    castle::{Castle, EventID, Tile},
+    castle::{Castle, Tile},
+    controller::Controller,
+    events::prelude::EventID,
     player::{Player, PlayerStatus},
     utils::prelude::*,
     zombie::{Zombie, ZombieStatus},
 };
 
 const TILE_SIZE: f32 = 32.0;
-const PLAYER_DISPLACEMENT: f32 = 0.10;
 const ZOMBIE_DISPLACEMENT: f32 = 0.90;
-
-#[derive(PartialEq)]
-enum GameState {
-    Win,
-    Lose,
-    Paused,
-    Active,
-}
 
 // Will be used as an initializer of a few things
 fn initialize() -> (Castle, Player, Zombie) {
@@ -38,15 +31,6 @@ fn draw_asset(asset: &Texture2D, coordinate: Coordinate, scale_params: DrawTextu
     );
 }
 
-fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
-    if matches!(
-        key_press,
-        KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
-    ) {
-        player.update_position(key_press, castle);
-    }
-}
-
 fn player_caught(player: &Player, zombie: &Zombie) -> bool {
     player.current_coordinate == zombie.current_coordinate
 }
@@ -64,6 +48,7 @@ fn check_game_status(
     } else {
         match game_status {
             GameState::Paused => GameState::Paused,
+            GameState::Quit => GameState::Quit,
             _ => GameState::Active,
         }
     }
@@ -71,6 +56,8 @@ fn check_game_status(
 
 #[macroquad::main("Castle Descent")]
 async fn main() {
+    //set_fullscreen(true);
+
     let (mut castle, mut player, mut zombie) = initialize();
 
     let door_bytes: &[u8] = include_bytes!("../assets/door.png");
@@ -100,6 +87,13 @@ async fn main() {
     let mut game_state = GameState::Active;
 
     let final_game_state = loop {
+        if matches!(
+            game_state,
+            GameState::Quit | GameState::Win | GameState::Lose
+        ) {
+            break;
+        }
+
         let dt = get_frame_time().min(0.25);
 
         clear_background(BLACK);
@@ -145,42 +139,13 @@ async fn main() {
             scale_params.clone(),
         );
 
-        // https://gamedev.stackexchange.com/questions/187660/fixed-timestep-game-loop-why-interpolation
-        let mut key_press = get_keys_pressed().iter().next().cloned();
-        if key_press.is_none() {
-            key_press = get_keys_down().iter().next().cloned();
-        }
+        Controller::roam(&mut player, &castle, &dt, &mut game_state);
 
-        if let Some(key) = key_press {
-            // Only accumulate if a key is down else large skipping occurs
-            player_accumulator += dt;
-
-            while player_accumulator >= PLAYER_DISPLACEMENT {
-                if matches!(player.status, PlayerStatus::Roam) {
-                    player_keyboard(key, &mut player, &castle);
-                }
-
-                player_accumulator -= PLAYER_DISPLACEMENT;
-            }
-
-            if matches!(key, KeyCode::Q | KeyCode::Escape) {
-                break;
-            }
-
-            if matches!(key, KeyCode::P) {
-                game_state = GameState::Paused;
-            } else if key_press.is_some() {
-                game_state = GameState::Active;
-            }
-        }
-
-        // TODO: Update game logic to play event but not get stuck
-        // on a conditional that ends up being always true
         let on_event_tile = castle
             .get_object(player.intended_coordinate)
             .is_some_and(|tile| !matches!(tile, Tile::Floor));
         if on_event_tile {
-            let tile = *castle
+            let tile = castle
                 .get_mutable_object(player.intended_coordinate)
                 .unwrap();
 
@@ -192,21 +157,31 @@ async fn main() {
             );
             if is_playable {
                 match tile {
-                    Tile::Door(EventID::MonsterEvent(_)) => draw_asset(
-                        &monster_texture,
-                        player.intended_coordinate,
-                        scale_params.clone(),
-                    ),
-                    Tile::Door(EventID::FairyEvent(_)) => draw_asset(
-                        &fairy_texture,
-                        player.intended_coordinate,
-                        scale_params.clone(),
-                    ),
-                    Tile::Door(EventID::GenieEvent(_)) => draw_asset(
-                        &genie_texture,
-                        player.intended_coordinate,
-                        scale_params.clone(),
-                    ),
+                    Tile::Door(event @ EventID::MonsterEvent(_)) => {
+                        draw_asset(
+                            &monster_texture,
+                            player.intended_coordinate,
+                            scale_params.clone(),
+                        );
+
+                        event.activate(&mut player, &mut zombie, &mut game_state)
+                    }
+                    Tile::Door(event @ EventID::FairyEvent(_)) => {
+                        draw_asset(
+                            &fairy_texture,
+                            player.intended_coordinate,
+                            scale_params.clone(),
+                        );
+                        event.activate(&mut player, &mut zombie, &mut game_state)
+                    }
+                    Tile::Door(event @ EventID::GenieEvent(_)) => {
+                        draw_asset(
+                            &genie_texture,
+                            player.intended_coordinate,
+                            scale_params.clone(),
+                        );
+                        event.activate(&mut player, &mut zombie, &mut game_state)
+                    }
                     _ => (),
                 };
             }
@@ -248,6 +223,7 @@ async fn main() {
             }
         }
 
+        game_state = check_game_status(&castle, &player, &zombie, game_state);
         next_frame().await
     };
 }

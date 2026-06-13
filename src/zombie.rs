@@ -22,6 +22,7 @@ pub struct Zombie {
     pub status: ZombieStatus,
     pub current_coordinate: Coordinate,
     pub distance_from_player: i8,
+    pub accumulator: f32,
 }
 
 impl Zombie {
@@ -37,6 +38,7 @@ impl Zombie {
             status: ZombieStatus::Roam,
             current_coordinate,
             distance_from_player,
+            accumulator: 0.0,
         }
     }
 
