@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-use Castle_Descent::{
+use CastleDescent::{
     castle::{Castle, Tile},
     controller::Controller,
     events::prelude::EventID,
