@@ -3,11 +3,9 @@ use macroquad::prelude::*;
 use CastleDescent::{
     castle::{Castle, Tile},
     controller::Controller,
+    debug_print,
     events::prelude::EventID,
-    player::{
-        Player,
-        PlayerStatus::{self, Event},
-    },
+    player::{Player, PlayerStatus},
     utils::prelude::*,
     zombie::{Zombie, ZombieStatus},
 };
