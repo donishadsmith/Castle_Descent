@@ -72,18 +72,18 @@ impl Player {
         self.intended_coordinate = new_coordinate;
         let object = castle.get_object(new_coordinate);
         if matches!(object, Some(Tile::Floor) | Some(Tile::Door(EventID::Empty))) {
-            (*self).current_coordinate.x += player_direction.x;
-            (*self).current_coordinate.y += player_direction.y;
+            self.current_coordinate.x += player_direction.x;
+            self.current_coordinate.y += player_direction.y;
         } else if object.is_none() {
             // Out of bounds, perform a wrap. Castle coordinated go from 0 to
             // max - 1, hence modulus should put max to 0 and -1 to max - 1
             // Only player allowed to wrap
             match direction {
                 KeyCode::Left | KeyCode::Right => {
-                    (*self).current_coordinate.x = new_coordinate.x.rem_euclid(castle.width);
+                    self.current_coordinate.x = new_coordinate.x.rem_euclid(castle.width);
                 }
                 KeyCode::Down | KeyCode::Up => {
-                    (*self).current_coordinate.y = new_coordinate.y.rem_euclid(castle.depth);
+                    self.current_coordinate.y = new_coordinate.y.rem_euclid(castle.depth);
                 }
                 _ => (),
             }

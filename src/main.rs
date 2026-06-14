@@ -4,7 +4,7 @@ use macroquad::prelude::*;
 use Castle_Descent::{
     castle::{Castle, Tile},
     controller::Controller,
-    debug_print,
+    //debug_print,
     events::prelude::EventID,
     hashmap,
     player::{Player, PlayerStatus},
@@ -136,17 +136,17 @@ fn activate_event(
 
                 event.activate(player, game_state)
             }
-            Tile::Shop(merchant @ _) => {}
+            Tile::Shop(merchant) => {}
             Tile::Door(EventID::Empty) => player.update_status(PlayerStatus::Hide),
             Tile::Door(EventID::Exit) => {
                 if player.current_coordinate.z < castle.floors - 1 {
                     castle.current_floor += 1;
                     player.current_coordinate =
-                        Player::select_initial_location(&castle, castle.current_floor);
+                        Player::select_initial_location(castle, castle.current_floor);
                     player.reset_intended_coordinate();
 
                     zombie.current_coordinate =
-                        Zombie::select_initial_location(&castle, &player, castle.current_floor);
+                        Zombie::select_initial_location(castle, player, castle.current_floor);
                     player.update_status(PlayerStatus::Roam);
 
                     *transition = Some(Transition {
@@ -204,9 +204,9 @@ fn check_game_status(
     zombie: &Zombie,
     game_status: GameState,
 ) -> GameState {
-    if player_caught(&player, &zombie) || player_dead(&player) {
+    if player_caught(player, zombie) || player_dead(player) {
         GameState::Lose
-    } else if reached_final_exit(&castle, &player) {
+    } else if reached_final_exit(castle, player) {
         GameState::Win
     } else {
         match game_status {

@@ -29,7 +29,7 @@ pub mod prelude {
             };
 
             match self {
-                EventID::MonsterEvent(monster @ _) => {
+                EventID::MonsterEvent(monster) => {
                     if matches!(monster.status, EventStatus::Uninitiated) {
                         monster.update_status(EventStatus::Initiated);
                     }
@@ -40,7 +40,7 @@ pub mod prelude {
 
                     Self::escape_event(player, &key);
                 }
-                EventID::FairyEvent(fairy @ _) => {
+                EventID::FairyEvent(fairy) => {
                     if matches!(fairy.status, EventStatus::Uninitiated) {
                         fairy.update_status(EventStatus::Initiated);
                     }
@@ -51,7 +51,7 @@ pub mod prelude {
 
                     Self::escape_event(player, &key)
                 }
-                EventID::GenieEvent(genie @ _) => {
+                EventID::GenieEvent(genie) => {
                     if matches!(genie.status, EventStatus::Uninitiated) {
                         genie.update_status(EventStatus::Initiated);
                     }

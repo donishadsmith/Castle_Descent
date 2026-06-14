@@ -32,7 +32,7 @@ impl Zombie {
             &current_coordinate,
             &player.current_coordinate,
             DistanceMetric::Euclidean,
-        ) as i32;
+        );
 
         Zombie {
             status: ZombieStatus::Roam,
@@ -67,7 +67,7 @@ impl Zombie {
                     *key,
                     Self::compute_distance(
                         &player.current_coordinate,
-                        &key,
+                        key,
                         DistanceMetric::Euclidean,
                     ),
                 );
@@ -117,7 +117,7 @@ impl Zombie {
                 ));
             }
 
-            let filtered_moves = Self::filter_possible_moves(possible_moves, &castle);
+            let filtered_moves = Self::filter_possible_moves(possible_moves, castle);
             if filtered_moves.contains(&player.current_coordinate) {
                 self.current_coordinate = player.current_coordinate;
             } else {

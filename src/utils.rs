@@ -46,7 +46,6 @@ pub mod prelude {
                 Component::Z => self.z as f32,
             }
         }
-
     }
 
     pub trait Descent {
@@ -75,7 +74,7 @@ pub mod prelude {
         *values.choose(&mut rng).unwrap()
     }
 
-    pub fn choose_random_coordinate(keys: &mut Vec<Coordinate>) -> Coordinate {
+    pub fn choose_random_coordinate(keys: &mut [Coordinate]) -> Coordinate {
         let mut rng = rand::rng();
 
         *keys.choose(&mut rng).unwrap()
@@ -116,13 +115,9 @@ pub mod prelude {
                 castle.max_floors(),
                 Tile::Door(EventID::Exit),
             )[0];
-            if (exit_coordinate.x - player.current_coordinate.x) == 0
+
+            (exit_coordinate.x - player.current_coordinate.x) == 0
                 && (exit_coordinate.y - player.current_coordinate.y) == 0
-            {
-                true
-            } else {
-                false
-            }
         }
     }
 
