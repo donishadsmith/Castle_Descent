@@ -3,10 +3,12 @@ use macroquad::input::{KeyCode, get_keys_down, get_keys_pressed};
 use crate::{
     castle::Castle,
     player::{Player, PlayerStatus},
-    utils::prelude::GameState,
+    utils::prelude::{EntityStatus, GameState},
+    zombie::{Zombie, ZombieStatus},
 };
 
 const PLAYER_DISPLACEMENT: f32 = 0.10;
+const ZOMBIE_DISPLACEMENT: f32 = 0.90;
 
 fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
     if matches!(
@@ -20,7 +22,13 @@ fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
 pub struct Controller {}
 
 impl Controller {
-    pub fn roam(player: &mut Player, castle: &Castle, dt: &f32, game_state: &mut GameState) {
+    pub fn roam(
+        castle: &Castle,
+        player: &mut Player,
+        zombie: &mut Zombie,
+        dt: &f32,
+        game_state: &mut GameState,
+    ) {
         if *game_state != GameState::Active {
             return;
         }
@@ -41,6 +49,17 @@ impl Controller {
                 }
 
                 player.accumulator -= PLAYER_DISPLACEMENT;
+            }
+        }
+
+        if matches!(game_state, GameState::Active) && matches!(player.status, PlayerStatus::Roam) {
+            zombie.accumulator += dt;
+
+            if zombie.accumulator >= ZOMBIE_DISPLACEMENT {
+                zombie.update_status(ZombieStatus::Roam);
+                zombie.chase_player(&player, &castle);
+
+                zombie.accumulator = 0.0;
             }
         }
     }

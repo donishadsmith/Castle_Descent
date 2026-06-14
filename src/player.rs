@@ -7,11 +7,6 @@ use crate::{
 use macroquad::input::KeyCode;
 use std::collections::HashMap;
 
-pub enum PlayerPlacement {
-    Initialize,
-    NextLevel,
-}
-
 #[derive(PartialEq)]
 pub enum PlayerStatus {
     Roam,
@@ -25,21 +20,20 @@ pub enum PlayerStatus {
 impl StatusType for PlayerStatus {}
 
 pub struct Player {
-    pub hp: i16,
-    pub mana: i16,
+    pub hp: i32,
+    pub mana: i32,
     pub money: i32,
-    pub attack_power: (i16, i16),
+    pub attack_power: (i32, i32),
     pub current_coordinate: Coordinate,
     pub intended_coordinate: Coordinate, // event is based on the intended coordinate
-    pub inventory: HashMap<Item, i16>,
+    pub inventory: HashMap<Item, i32>,
     pub status: PlayerStatus,
     pub accumulator: f32,
 }
 
 impl Player {
     pub fn spawn(castle: &Castle) -> Self {
-        let current_coordinate =
-            Self::select_initial_location(castle, PlayerPlacement::Initialize, 0);
+        let current_coordinate = Self::select_initial_location(castle, 0);
         let intended_coordinate = current_coordinate;
 
         Self {
@@ -55,21 +49,14 @@ impl Player {
         }
     }
 
-    fn select_initial_location(
-        castle: &Castle,
-        placement: PlayerPlacement,
-        current_floor: i8,
-    ) -> Coordinate {
-        let mut keys = match placement {
-            PlayerPlacement::Initialize => {
-                filter_possible_coordinates(&castle.layout, current_floor, Tile::Floor)
-            }
-            PlayerPlacement::NextLevel => {
-                filter_possible_coordinates(&castle.layout, current_floor + 1, Tile::Floor)
-            }
-        };
+    pub fn select_initial_location(castle: &Castle, floor: i32) -> Coordinate {
+        let mut keys = filter_possible_coordinates(&castle.layout, floor, Tile::Floor);
 
         choose_random_coordinate(&mut keys)
+    }
+
+    pub fn reset_intended_coordinate(&mut self) {
+        self.intended_coordinate = self.current_coordinate;
     }
 
     // Only increment by grid movements of +- 1 instead of float movement
@@ -114,7 +101,7 @@ impl EntityStatus for Player {
 }
 
 impl Descent for Player {
-    fn increment_floor(&mut self) -> &mut i8 {
+    fn increment_floor(&mut self) -> &mut i32 {
         &mut self.current_coordinate.z
     }
 }

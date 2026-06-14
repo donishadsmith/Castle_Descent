@@ -21,7 +21,7 @@ impl StatusType for ZombieStatus {}
 pub struct Zombie {
     pub status: ZombieStatus,
     pub current_coordinate: Coordinate,
-    pub distance_from_player: i8,
+    pub distance_from_player: i32,
     pub accumulator: f32,
 }
 
@@ -32,7 +32,7 @@ impl Zombie {
             &current_coordinate,
             &player.current_coordinate,
             DistanceMetric::Euclidean,
-        ) as i8;
+        ) as i32;
 
         Zombie {
             status: ZombieStatus::Roam,
@@ -42,11 +42,11 @@ impl Zombie {
         }
     }
 
-    fn compute_distance(a: &Coordinate, b: &Coordinate, metric: DistanceMetric) -> i16 {
+    fn compute_distance(a: &Coordinate, b: &Coordinate, metric: DistanceMetric) -> i32 {
         match metric {
             DistanceMetric::Euclidean => {
-                let dx = (b.x - a.x) as i16;
-                let dy = (b.y - a.y) as i16;
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
 
                 dx * dx + dy * dy
             }
@@ -54,13 +54,13 @@ impl Zombie {
                 let x = (b.x - a.x).abs();
                 let y = (b.y - a.y).abs();
 
-                x.max(y) as i16
+                x.max(y)
             }
         }
     }
 
-    fn select_initial_location(castle: &Castle, player: &Player, floor: i8) -> Coordinate {
-        let mut distance_hashmap: HashMap<Coordinate, i16> = HashMap::new();
+    pub fn select_initial_location(castle: &Castle, player: &Player, floor: i32) -> Coordinate {
+        let mut distance_hashmap: HashMap<Coordinate, i32> = HashMap::new();
         for key in castle.layout.keys() {
             if key.z == floor && matches!(castle.layout.get(key).unwrap(), Tile::Floor) {
                 distance_hashmap.insert(
@@ -121,7 +121,7 @@ impl Zombie {
             if filtered_moves.contains(&player.current_coordinate) {
                 self.current_coordinate = player.current_coordinate;
             } else {
-                let mut distance_hashmap: HashMap<Coordinate, i16> = HashMap::new();
+                let mut distance_hashmap: HashMap<Coordinate, i32> = HashMap::new();
                 for coord in &filtered_moves {
                     distance_hashmap.insert(
                         *coord,
@@ -155,7 +155,7 @@ impl Zombie {
 impl Entity for Zombie {}
 
 impl Descent for Zombie {
-    fn increment_floor(&mut self) -> &mut i8 {
+    fn increment_floor(&mut self) -> &mut i32 {
         &mut self.current_coordinate.z
     }
 }

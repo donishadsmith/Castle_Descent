@@ -5,10 +5,12 @@ use strum::Display;
 
 use crate::{events::prelude::*, merchant::Merchant, utils::prelude::*};
 
-const MIN_FLOORS: i8 = 3;
-const MAX_FLOORS: i8 = 6;
-const MIN_LENGTH: i8 = 10;
-const MAX_LENGTH: i8 = 20;
+// i32 is Rust's default for unconstrained integers and will avoid the integer overflow issues
+// that will likely occur due to using i8. So entire game will just use i32.
+const MIN_FLOORS: i32 = 3;
+const MAX_FLOORS: i32 = 5;
+const MIN_LENGTH: i32 = 11;
+const MAX_LENGTH: i32 = 15;
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum Tile {
@@ -18,17 +20,17 @@ pub enum Tile {
 }
 
 impl Tile {
-    pub fn choose_random_event_type() -> i8 {
+    pub fn choose_random_event_type() -> i32 {
         let mut rng = rand::rng();
         rng.random_range(1..=10)
     }
 }
 
 pub struct Castle {
-    pub width: i8,
-    pub depth: i8,
-    pub floors: i8,
-    pub current_floor: i8,
+    pub width: i32,
+    pub depth: i32,
+    pub floors: i32,
+    pub current_floor: i32,
     pub layout: HashMap<Coordinate, Tile>,
 }
 
@@ -36,9 +38,10 @@ impl Castle {
     pub fn generate() -> Self {
         let mut rng = rand::rng();
 
-        let width = rng.random_range(MIN_LENGTH..MAX_LENGTH);
-        let depth = rng.random_range(MIN_LENGTH..MAX_LENGTH);
-        let floors = rng.random_range(MIN_FLOORS..MAX_FLOORS);
+        let valid_values: Vec<i32> = (MIN_LENGTH..=MAX_LENGTH).step_by(2).collect();
+        let width = *valid_values.choose(&mut rng).unwrap();
+        let depth = *valid_values.choose(&mut rng).unwrap();
+        let floors = rng.random_range(MIN_FLOORS..=MAX_FLOORS);
 
         let mut layout: HashMap<Coordinate, Tile> = HashMap::new();
         Self::populate_layout(&mut layout, width, depth, floors);
@@ -54,12 +57,12 @@ impl Castle {
 
     fn insert_special_tiles(
         layout: &mut HashMap<Coordinate, Tile>,
-        width: i8,
-        depth: i8,
-        floors: i8,
+        width: i32,
+        depth: i32,
+        floors: i32,
     ) {
-        let base_x_coords: Vec<i8> = (1..width).step_by(2).collect();
-        let base_y_coords: Vec<i8> = (1..depth).step_by(2).collect();
+        let base_x_coords: Vec<i32> = (1..width).step_by(2).collect();
+        let base_y_coords: Vec<i32> = (1..depth).step_by(2).collect();
 
         for floor in 0..floors {
             let exit_x = choose_random_value(&base_x_coords);
@@ -86,10 +89,15 @@ impl Castle {
         }
     }
 
-    fn populate_layout(layout: &mut HashMap<Coordinate, Tile>, width: i8, depth: i8, floors: i8) {
+    fn populate_layout(
+        layout: &mut HashMap<Coordinate, Tile>,
+        width: i32,
+        depth: i32,
+        floors: i32,
+    ) {
         Self::insert_special_tiles(layout, width, depth, floors);
 
-        let mut monster_hp_range: Vec<i8> = (5..=10).collect();
+        let mut monster_hp_range: Vec<i32> = (5..=10).collect();
 
         for z in 0..floors {
             for x in 0..width {
@@ -116,9 +124,7 @@ impl Castle {
                 }
             }
 
-            // Increment by 5, i8 range allows -127 to 128
-            // Max number of floors is 6 so max hp will 60 for monsters, within range
-            monster_hp_range = monster_hp_range.iter().map(|x| x + 5).collect::<Vec<i8>>();
+            monster_hp_range = monster_hp_range.iter().map(|x| x + 5).collect::<Vec<i32>>();
         }
     }
 
@@ -130,13 +136,13 @@ impl Castle {
         self.layout.get_mut(&coordinate)
     }
 
-    pub fn max_floors(&self) -> i8 {
+    pub fn max_floors(&self) -> i32 {
         self.floors - 1
     }
 }
 
 impl Descent for Castle {
-    fn increment_floor(&mut self) -> &mut i8 {
+    fn increment_floor(&mut self) -> &mut i32 {
         &mut self.current_floor
     }
 }

@@ -29,13 +29,13 @@ pub mod prelude {
 
     #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
     pub struct Coordinate {
-        pub x: i8,
-        pub y: i8,
-        pub z: i8,
+        pub x: i32,
+        pub y: i32,
+        pub z: i32,
     }
 
     impl Coordinate {
-        pub fn new(x: i8, y: i8, z: i8) -> Self {
+        pub fn new(x: i32, y: i32, z: i32) -> Self {
             Self { x, y, z }
         }
 
@@ -47,17 +47,10 @@ pub mod prelude {
             }
         }
 
-        pub fn to_u32(&self, component: Component) -> u32 {
-            match component {
-                Component::X => self.x as u32,
-                Component::Y => self.y as u32,
-                Component::Z => self.z as u32,
-            }
-        }
     }
 
     pub trait Descent {
-        fn increment_floor(&mut self) -> &mut i8;
+        fn increment_floor(&mut self) -> &mut i32;
 
         fn descend(&mut self) {
             *self.increment_floor() += 1
@@ -76,7 +69,7 @@ pub mod prelude {
         }
     }
 
-    pub fn choose_random_value(values: &[i8]) -> i8 {
+    pub fn choose_random_value(values: &[i32]) -> i32 {
         let mut rng = rand::rng();
 
         *values.choose(&mut rng).unwrap()
@@ -90,7 +83,7 @@ pub mod prelude {
 
     pub fn filter_possible_coordinates(
         layout: &HashMap<Coordinate, Tile>,
-        current_floor: i8,
+        current_floor: i32,
         filter_type: Tile,
     ) -> Vec<Coordinate> {
         let filtered_keys: Vec<Coordinate> = layout
@@ -140,4 +133,23 @@ pub mod prelude {
     pub fn next_level<Entity: Descent>(object: &mut Entity) {
         object.descend();
     }
+}
+
+#[macro_export]
+macro_rules! debug_print {
+    ($(($statement:expr, $object:expr)),+) => {
+        $(println!("{}: {:?}", $statement, $object);)*
+    }
+}
+
+#[macro_export]
+macro_rules! hashmap {
+    ($($key:expr ; $value:expr),+) => [
+        {
+            let mut map = std::collections::HashMap::new();
+            $(map.insert($key, $value);)*
+
+            map
+        }
+    ]
 }

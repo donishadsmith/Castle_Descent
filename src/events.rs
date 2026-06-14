@@ -3,6 +3,7 @@ pub mod prelude {
     use strum::Display;
 
     use crate::{
+        castle::Castle,
         controller::Controller,
         player::{Player, PlayerStatus},
         utils::prelude::*,
@@ -20,12 +21,7 @@ pub mod prelude {
 
     // Just keep sequences in one implementation
     impl EventID {
-        pub fn activate(
-            &mut self,
-            player: &mut Player,
-            zombie: &mut Zombie,
-            game_state: &mut GameState,
-        ) {
+        pub fn activate(&mut self, player: &mut Player, game_state: &mut GameState) {
             if *game_state != GameState::Active {
                 return;
             }
@@ -68,14 +64,14 @@ pub mod prelude {
 
                     Self::escape_event(player, &key)
                 }
-                EventID::Empty => {}
-                EventID::Exit => {}
+                _ => (),
             }
         }
 
         fn escape_event(player: &mut Player, key: &KeyCode) {
-            // Eventually will replace with logic for running away
-            if matches!(key, KeyCode::T) {
+            // Eventually will replace with logic for running away, E is just
+            // for testing and escaping for now
+            if matches!(key, KeyCode::E) {
                 player.update_status(PlayerStatus::Roam);
                 player.intended_coordinate = player.current_coordinate;
             } else {
@@ -145,12 +141,12 @@ pub mod prelude {
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub struct Monster {
-        pub hp: i8,
+        pub hp: i32,
         pub status: EventStatus,
     }
 
     impl Monster {
-        pub fn spawn(hp: i8) -> Self {
+        pub fn spawn(hp: i32) -> Self {
             Self {
                 hp,
                 status: EventStatus::Uninitiated,
