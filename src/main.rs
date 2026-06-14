@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-use CastleDescent::{
+use Castle_Descent::{
     castle::{Castle, Tile},
     controller::Controller,
     debug_print,
