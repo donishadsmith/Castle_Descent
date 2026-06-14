@@ -3,11 +3,9 @@ pub mod prelude {
     use strum::Display;
 
     use crate::{
-        castle::Castle,
         controller::Controller,
         player::{Player, PlayerStatus},
         utils::prelude::*,
-        zombie::Zombie,
     };
 
     #[derive(Clone, Copy, Debug, Display, PartialEq)]

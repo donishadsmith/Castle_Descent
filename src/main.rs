@@ -1,4 +1,4 @@
-use ::std::{collections::HashMap, thread::sleep, time::Duration};
+use ::std::collections::HashMap;
 use macroquad::prelude::*;
 
 use Castle_Descent::{
@@ -226,8 +226,8 @@ fn reset_game(game_state: &mut GameState) -> bool {
         };
 
         draw_transparant_screen(
-            &text_str,
-            &"Press 'r' to restart or 'q' to quit.",
+            text_str,
+            "Press 'r' to restart or 'q' to quit.",
             80.0,
             160.0,
             -50.0,
@@ -321,8 +321,8 @@ async fn main() {
 
         if matches!(game_state, GameState::Paused) {
             draw_transparant_screen(
-                &"Game Paused",
-                &"Press any key to continue.",
+                "Game Paused",
+                "Press any key to continue.",
                 100.0,
                 140.0,
                 -50.0,

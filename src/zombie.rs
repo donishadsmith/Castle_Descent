@@ -127,7 +127,7 @@ impl Zombie {
                         *coord,
                         Self::compute_distance(
                             &player.current_coordinate,
-                            &coord,
+                            coord,
                             DistanceMetric::Chebyshev,
                         ),
                     );

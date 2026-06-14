@@ -45,7 +45,7 @@ impl Controller {
 
             while player.accumulator >= PLAYER_DISPLACEMENT {
                 if matches!(player.status, PlayerStatus::Roam) {
-                    player_keyboard(key, player, &castle);
+                    player_keyboard(key, player, castle);
                 }
 
                 player.accumulator -= PLAYER_DISPLACEMENT;
@@ -57,7 +57,7 @@ impl Controller {
 
             if zombie.accumulator >= ZOMBIE_DISPLACEMENT {
                 zombie.update_status(ZombieStatus::Roam);
-                zombie.chase_player(&player, &castle);
+                zombie.chase_player(player, castle);
 
                 zombie.accumulator = 0.0;
             }
