@@ -34,7 +34,7 @@ pub mod prelude {
                         monster.update_status(EventStatus::Initiated);
                     }
 
-                    monster.update_status(EventStatus::Complete);
+                    //monster.update_status(EventStatus::Complete);
                     Self::escape_event(player, &key, monster);
                 }
                 EventID::FairyEvent(fairy) => {

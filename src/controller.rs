@@ -72,7 +72,7 @@ impl Controller {
                 zombie.update_status(ZombieStatus::Roam);
 
                 if player.status == PlayerStatus::Hide {
-                    zombie.random_move(castle);
+                    zombie.wander(castle);
                 } else {
                     zombie.chase_player(player, castle);
                 }

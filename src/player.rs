@@ -1,12 +1,14 @@
+use macroquad::prelude::*;
+use std::{collections::HashMap};
+
 use crate::{
     castle::{Castle, Tile},
     controller::Controller,
     events::prelude::EventID,
     merchant::Item,
     utils::prelude::*,
+    zombie::Zombie,
 };
-use macroquad::input::KeyCode;
-use std::collections::HashMap;
 
 #[derive(PartialEq, Debug)]
 pub enum PlayerStatus {
@@ -27,20 +29,136 @@ pub struct Encounter {
 
 impl Encounter {
     pub fn is_playable_event(&self, castle: &Castle) -> bool {
-        match self.tile(castle) {
+        matches!(
+            self.tile(castle),
             Some(Tile::Door(EventID::FairyEvent(_)))
-            | Some(Tile::Door(EventID::GenieEvent(_)))
-            | Some(Tile::Door(EventID::MonsterEvent(_))) => true,
-            _ => false,
-        }
+                | Some(Tile::Door(EventID::GenieEvent(_)))
+                | Some(Tile::Door(EventID::MonsterEvent(_)))
+        )
     }
 
     pub fn tile<'a>(&self, castle: &'a Castle) -> Option<&'a Tile> {
-        castle.get_object(self.coordinate)
+        castle.get_ref_object(self.coordinate)
+    }
+}
+
+pub struct Inventory {
+    storage: HashMap<Item, i32>,
+}
+
+impl Inventory {
+    fn new() -> Self {
+        Self {
+            storage: HashMap::new(),
+        }
     }
 
-    pub fn reset(&mut self, coordinate: Coordinate) {
-        self.coordinate = coordinate;
+    fn delete_empty(&mut self) {
+        self.storage.retain(|_, value| *value > 0);
+    }
+
+    pub fn decrement_item(&mut self, item: Item) {
+        if let Some(n) = self.storage.get_mut(&item) {
+            *n -= 1
+        }
+
+        self.delete_empty();
+    }
+
+    pub fn add_item(&mut self, item: Item) {
+        if !self.storage.contains_key(&item) {
+            self.storage.insert(item, 1);
+        } else {
+            if let Some(n) = self.storage.get_mut(&item) {
+                *n += 1;
+            }
+        }
+    }
+
+    pub fn max_space_distance(&self) -> f32 {
+        -60.0 * (self.storage.len() as f32)
+    }
+
+    pub fn display(
+        &self,
+        player: &Player,
+        texture_map: &HashMap<&str, Texture2D>,
+        scale_params: DrawTextureParams,
+    ) {
+        let screen_x = screen_width() / 4.0;
+        let screen_y = screen_height() / 2.0;
+
+        let mut increment_y = self.max_space_distance();
+        for item in self.storage.keys() {
+            draw_texture_ex(
+                texture_map.get(item.identity()).unwrap(),
+                screen_x,
+                screen_y + increment_y,
+                WHITE,
+                scale_params.clone(),
+            );
+
+            increment_y += 60.0;
+        }
+
+        draw_text(
+            format!(
+                "HP: {} | Mana: {} | Money: {}",
+                player.hp, player.mana, player.money
+            ),
+            screen_width() / 4.0,
+            screen_height() / 2.0 + 30.0,
+            30.0,
+            WHITE,
+        );
+
+        draw_text(
+            format!("Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)"),
+            screen_width() / 4.0 - 30.0,
+            screen_height() / 2.0 + 60.0,
+            20.0,
+            WHITE,
+        );
+    }
+}
+
+pub struct Effects {
+    active: Vec<Item>,
+}
+
+impl Effects {
+    fn new() -> Self {
+        Self { active: Vec::new() }
+    }
+
+    pub fn remove(&mut self, item: Item) {
+        self.active.retain(|key| *key != item);
+    }
+
+    pub fn reveal_exit(&self) -> bool {
+        self.in_effect(&Item::CrystalBall)
+    }
+
+    pub fn freeze_zombie(&self) -> bool {
+        self.in_effect(&Item::Hourglass)
+    }
+
+    pub fn freeze_time() -> i32 {
+        choose_random_range(5..11)
+    }
+
+    pub fn in_effect(&self, item: &Item) -> bool {
+        self.active.contains(&item)
+    }
+
+    pub fn add_effect(&mut self, item: Item) {
+        if !matches!(item.identity(), "hourglass" | "crystal_ball") {
+            return;
+        }
+
+        if !self.in_effect(&item) {
+            self.active.push(item);
+        }
     }
 }
 
@@ -50,10 +168,11 @@ pub struct Player {
     pub money: i32,
     pub attack_power: (i32, i32),
     pub current_coordinate: Coordinate,
-    pub inventory: HashMap<Item, i32>,
+    pub inventory: Inventory,
     pub status: PlayerStatus,
     pub accumulator: f32,
     pub encounter: Encounter,
+    pub effects: Effects,
 }
 
 impl Player {
@@ -69,10 +188,11 @@ impl Player {
             money: 100,
             attack_power: (1, 5),
             current_coordinate,
-            inventory: HashMap::new(),
+            inventory: Inventory::new(),
             status: PlayerStatus::Roam,
             accumulator: 0.0,
             encounter,
+            effects: Effects::new(),
         }
     }
 
@@ -129,6 +249,18 @@ impl Player {
     pub fn in_shop(&self) -> bool {
         self.status == PlayerStatus::Shop
     }
+
+    pub fn dead(&mut self) {
+        if self.hp <= 0 {
+            self.update_status(PlayerStatus::Lose);
+        }
+    }
+
+    pub fn caught(&mut self, zombie: &Zombie) {
+        if self.current_coordinate == zombie.current_coordinate {
+            self.update_status(PlayerStatus::Lose)
+        }
+    }
 }
 
 impl Entity for Player {}
@@ -137,11 +269,5 @@ impl EntityStatus for Player {
     type Status = PlayerStatus;
     fn current_status(&mut self) -> &mut PlayerStatus {
         &mut self.status
-    }
-}
-
-impl Descent for Player {
-    fn increment_floor(&mut self) -> &mut i32 {
-        &mut self.current_coordinate.z
     }
 }

@@ -5,8 +5,6 @@ use strum::Display;
 
 use crate::{events::prelude::*, merchant::Merchant, utils::prelude::*};
 
-// i32 is Rust's default for unconstrained integers and will avoid the integer overflow issues
-// that will likely occur due to using i8. So entire game will just use i32.
 const MIN_FLOORS: i32 = 3;
 const MAX_FLOORS: i32 = 5;
 const MIN_LENGTH: i32 = 11;
@@ -128,7 +126,7 @@ impl Castle {
         }
     }
 
-    pub fn get_object(&self, coordinate: Coordinate) -> Option<&Tile> {
+    pub fn get_ref_object(&self, coordinate: Coordinate) -> Option<&Tile> {
         self.layout.get(&coordinate)
     }
 
@@ -139,10 +137,8 @@ impl Castle {
     pub fn max_floors(&self) -> i32 {
         self.floors - 1
     }
-}
 
-impl Descent for Castle {
-    fn increment_floor(&mut self) -> &mut i32 {
-        &mut self.current_floor
+    pub fn increment_floor(&mut self) {
+        self.current_floor += 1
     }
 }

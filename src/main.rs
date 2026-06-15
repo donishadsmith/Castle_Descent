@@ -1,12 +1,30 @@
+/*
+TODO:
+- Implement merchant
+- Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each.
+- Add logic for inventory display and selection
+- Clean preludes
+*/
+
+// PNG assets from https://emoji.aranja.com/
+// if needed later, go back to having a library + binary crate
+
+mod castle;
+mod controller;
+mod events;
+mod merchant;
+mod player;
+mod utils;
+mod zombie;
+
 use ::std::collections::HashMap;
 use macroquad::prelude::*;
 
-use Castle_Descent::{
+use crate::{
     castle::{Castle, Tile},
     controller::Controller,
-    debug_print,
     events::prelude::EventID,
-    hashmap,
+    merchant::Item,
     player::{Player, PlayerStatus},
     utils::prelude::*,
     zombie::{Zombie, ZombieStatus},
@@ -84,9 +102,20 @@ fn render_castle(
                     scale_params.clone(),
                 );
             }
+
             Tile::Door(_) => {
+                let door_type = if player.effects.reveal_exit()
+                    && matches!(
+                        castle.get_ref_object(*coordinate),
+                        Some(Tile::Door(EventID::Exit))
+                    ) {
+                    "exit"
+                } else {
+                    "door"
+                };
+
                 draw_asset(
-                    texture_map.get("door").unwrap(),
+                    texture_map.get(door_type).unwrap(),
                     *coordinate,
                     scale_params.clone(),
                 );
@@ -153,8 +182,8 @@ fn activate_event(
                 }
             }
             Tile::Door(EventID::Exit) => {
-                if player.current_coordinate.z < castle.floors - 1 {
-                    castle.current_floor += 1;
+                if player.current_coordinate.z < castle.max_floors() {
+                    castle.increment_floor();
                     player.current_coordinate =
                         Player::select_initial_location(castle, castle.current_floor);
                     player.encounter.coordinate = player.current_coordinate;
@@ -212,19 +241,10 @@ fn draw_transparant_screen(
     );
 }
 
-fn player_caught(player: &Player, zombie: &Zombie) -> bool {
-    player.current_coordinate == zombie.current_coordinate
-}
-
-fn check_game_status(
-    castle: &Castle,
-    player: &Player,
-    zombie: &Zombie,
-    game_status: GameState,
-) -> GameState {
-    if player_caught(player, zombie) || player_dead(player) {
+fn check_game_status(player: &Player, game_status: GameState) -> GameState {
+    if player.status == PlayerStatus::Lose {
         GameState::Lose
-    } else if reached_final_exit(castle, player) {
+    } else if player.status == PlayerStatus::Win {
         GameState::Win
     } else {
         match game_status {
@@ -268,8 +288,6 @@ fn reset_game(game_state: &mut GameState) -> bool {
 
 #[macroquad::main("Castle Descent")]
 async fn main() {
-    //set_fullscreen(true);
-
     let (mut castle, mut player, mut zombie) = initialize();
 
     let door_bytes: &[u8] = include_bytes!("../assets/door.png");
@@ -279,6 +297,12 @@ async fn main() {
     let genie_bytes: &[u8] = include_bytes!("../assets/genie.png");
     let player_bytes: &[u8] = include_bytes!("../assets/player.png");
     let zombie_bytes: &[u8] = include_bytes!("../assets/zombie.png");
+    let exit_bytes: &[u8] = include_bytes!("../assets/exit.png");
+    let crystal_ball_bytes: &[u8] = include_bytes!("../assets/crystal_ball.png");
+    let meat_bytes: &[u8] = include_bytes!("../assets/meat.png");
+    let hourglass_bytes: &[u8] = include_bytes!("../assets/hourglass.png");
+    let potion_bytes: &[u8] = include_bytes!("../assets/potion.png");
+    let x_bytes: &[u8] = include_bytes!("../assets/x.png");
 
     let texture_map: HashMap<&str, Texture2D> = hashmap!(
         "door" ; Texture2D::from_file_with_format(door_bytes, None),
@@ -287,7 +311,13 @@ async fn main() {
         "fairy" ; Texture2D::from_file_with_format(fairy_bytes, None),
         "genie" ; Texture2D::from_file_with_format(genie_bytes, None),
         "player" ; Texture2D::from_file_with_format(player_bytes, None),
-        "zombie" ; Texture2D::from_file_with_format(zombie_bytes, None)
+        "zombie" ; Texture2D::from_file_with_format(zombie_bytes, None),
+        "exit" ; Texture2D::from_file_with_format(exit_bytes, None),
+        "crystal_ball" ; Texture2D::from_file_with_format(crystal_ball_bytes, None),
+        "meat" ; Texture2D::from_file_with_format(meat_bytes, None),
+        "hourglass" ; Texture2D::from_file_with_format(hourglass_bytes, None),
+        "x" ; Texture2D::from_file_with_format(x_bytes, None),
+        "potion" ; Texture2D::from_file_with_format(potion_bytes, None)
     );
 
     let scale_params = DrawTextureParams {
@@ -297,6 +327,8 @@ async fn main() {
 
     let mut game_state = GameState::Active;
     let mut transition: Option<Transition> = None;
+
+    //player.effects.add_effect(Item::CrystalBall);
 
     loop {
         zombie.update_status(ZombieStatus::Frozen);
@@ -324,6 +356,13 @@ async fn main() {
         if player.in_shop() {
             Controller::shop(&mut player);
         } else if player.in_inventory() {
+            //player.inventory.add_item(Item::CrystalBall);
+            //player.inventory.add_item(Item::Meat);
+            //player.inventory.add_item(Item::Hourglass);
+            //player.inventory.add_item(Item::Potion);
+            player
+                .inventory
+                .display(&player, &texture_map, scale_params.clone());
             Controller::inventory(&mut player);
         } else {
             Controller::roam(&castle, &mut player, &mut zombie, &dt, &mut game_state);
@@ -331,7 +370,9 @@ async fn main() {
 
         Controller::mutate_game_state(&mut game_state);
         if !matches!(game_state, GameState::Win | GameState::Lose) {
-            game_state = check_game_status(&castle, &player, &zombie, game_state);
+            player.dead();
+            player.caught(&zombie);
+            game_state = check_game_status(&player, game_state);
         }
 
         activate_event(

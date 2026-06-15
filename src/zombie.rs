@@ -11,6 +11,7 @@ enum DistanceMetric {
     Chebyshev,
 }
 
+#[derive(PartialEq)]
 pub enum ZombieStatus {
     Roam,
     Frozen,
@@ -21,23 +22,18 @@ impl StatusType for ZombieStatus {}
 pub struct Zombie {
     pub status: ZombieStatus,
     pub current_coordinate: Coordinate,
-    pub distance_from_player: i32,
+    pub freeze_timer: f32,
     pub accumulator: f32,
 }
 
 impl Zombie {
     pub fn spawn(castle: &Castle, player: &Player) -> Self {
         let current_coordinate = Self::select_initial_location(castle, player, 0);
-        let distance_from_player = Self::compute_distance(
-            &current_coordinate,
-            &player.current_coordinate,
-            DistanceMetric::Euclidean,
-        );
 
         Zombie {
             status: ZombieStatus::Roam,
             current_coordinate,
-            distance_from_player,
+            freeze_timer: 0.0,
             accumulator: 0.0,
         }
     }
@@ -150,21 +146,26 @@ impl Zombie {
         }
     }
 
-    pub fn random_move(&mut self, castle: &Castle) {
+    pub fn wander(&mut self, castle: &Castle) {
         let mut possible_moves = self.filter_possible_moves(castle);
         possible_moves.push(self.current_coordinate);
 
         self.current_coordinate = choose_random_coordinate(&mut possible_moves);
     }
+
+    pub fn decrement_timer(&mut self, dt: &f32) {
+        if self.status == ZombieStatus::Frozen {
+            self.freeze_timer -= dt;
+
+            if self.freeze_timer <= 0.0 {
+                self.freeze_timer = 0.0;
+                self.update_status(ZombieStatus::Roam);
+            }
+        }
+    }
 }
 
 impl Entity for Zombie {}
-
-impl Descent for Zombie {
-    fn increment_floor(&mut self) -> &mut i32 {
-        &mut self.current_coordinate.z
-    }
-}
 
 impl EntityStatus for Zombie {
     type Status = ZombieStatus;

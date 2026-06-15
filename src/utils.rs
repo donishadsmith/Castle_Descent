@@ -48,14 +48,6 @@ pub mod prelude {
         }
     }
 
-    pub trait Descent {
-        fn increment_floor(&mut self) -> &mut i32;
-
-        fn descend(&mut self) {
-            *self.increment_floor() += 1
-        }
-    }
-
     pub trait Entity {}
     pub trait StatusType {}
     pub trait EntityStatus: Entity {
@@ -72,6 +64,12 @@ pub mod prelude {
         let mut rng = rand::rng();
 
         *values.choose(&mut rng).unwrap()
+    }
+
+    pub fn choose_random_range(range: std::ops::Range<i32>) -> i32 {
+        let mut rng = rand::rng();
+
+        rng.random_range(range)
     }
 
     pub fn choose_random_coordinate(keys: &mut [Coordinate]) -> Coordinate {
@@ -103,30 +101,6 @@ pub mod prelude {
             KeyCode::Up => Coordinate::new(0, -1, 0),
             _ => Coordinate::new(0, 0, 0),
         }
-    }
-
-    pub fn reached_final_exit(castle: &Castle, player: &Player) -> bool {
-        if player.current_coordinate.z != castle.max_floors() {
-            false
-        } else {
-            // There will always be one exit
-            let exit_coordinate = filter_possible_coordinates(
-                &castle.layout,
-                castle.max_floors(),
-                Tile::Door(EventID::Exit),
-            )[0];
-
-            (exit_coordinate.x - player.current_coordinate.x) == 0
-                && (exit_coordinate.y - player.current_coordinate.y) == 0
-        }
-    }
-
-    pub fn player_dead(player: &Player) -> bool {
-        player.hp <= 0
-    }
-
-    pub fn next_level<Entity: Descent>(object: &mut Entity) {
-        object.descend();
     }
 }
 
