@@ -50,6 +50,23 @@ fn render_castle(
             continue;
         }
 
+        if player.in_inventory() || player.in_shop() {
+            return;
+        }
+
+        if player.status != PlayerStatus::Hide {
+            draw_asset(
+                texture_map.get("player").unwrap(),
+                player.current_coordinate,
+                scale_params.clone(),
+            );
+        }
+
+        // Only render player an object on screen if in playable event
+        if player.encounter.is_playable_event(castle) {
+            return;
+        }
+
         match tile {
             Tile::Floor => {
                 draw_rectangle(
@@ -68,26 +85,13 @@ fn render_castle(
                 );
             }
             Tile::Door(_) => {
-                let is_active_event = *coordinate == player.intended_coordinate
-                    && matches!(player.status, PlayerStatus::Event);
-
-                if !is_active_event {
-                    draw_asset(
-                        texture_map.get("door").unwrap(),
-                        *coordinate,
-                        scale_params.clone(),
-                    );
-                }
+                draw_asset(
+                    texture_map.get("door").unwrap(),
+                    *coordinate,
+                    scale_params.clone(),
+                );
             }
         }
-    }
-
-    if player.status != PlayerStatus::Hide {
-        draw_asset(
-            texture_map.get("player").unwrap(),
-            player.current_coordinate,
-            scale_params.clone(),
-        );
     }
 
     draw_asset(
@@ -105,14 +109,13 @@ fn activate_event(
     scale_params: &DrawTextureParams,
     game_state: &mut GameState,
     transition: &mut Option<Transition>,
-    dt: &f32,
 ) {
-    if let Some(tile) = castle.get_mutable_object(player.intended_coordinate) {
+    if let Some(tile) = castle.get_mutable_object(player.encounter.coordinate) {
         match tile {
             Tile::Door(event @ EventID::MonsterEvent(_)) => {
                 draw_asset(
                     texture_map.get("monster").unwrap(),
-                    player.intended_coordinate,
+                    player.encounter.coordinate,
                     scale_params.clone(),
                 );
 
@@ -122,7 +125,7 @@ fn activate_event(
             Tile::Door(event @ EventID::FairyEvent(_)) => {
                 draw_asset(
                     texture_map.get("fairy").unwrap(),
-                    player.intended_coordinate,
+                    player.encounter.coordinate,
                     scale_params.clone(),
                 );
 
@@ -132,14 +135,18 @@ fn activate_event(
             Tile::Door(event @ EventID::GenieEvent(_)) => {
                 draw_asset(
                     texture_map.get("genie").unwrap(),
-                    player.intended_coordinate,
+                    player.encounter.coordinate,
                     scale_params.clone(),
                 );
 
                 event.activate(player, game_state);
                 event.replace_if_complete();
             }
-            Tile::Shop(merchant) => {}
+            Tile::Shop(merchant) => {
+                if player.status != PlayerStatus::Shop {
+                    player.update_status(PlayerStatus::Shop);
+                }
+            }
             Tile::Door(EventID::Empty) => {
                 if player.status != PlayerStatus::Hide {
                     player.update_status(PlayerStatus::Hide);
@@ -150,7 +157,7 @@ fn activate_event(
                     castle.current_floor += 1;
                     player.current_coordinate =
                         Player::select_initial_location(castle, castle.current_floor);
-                    player.reset_intended_coordinate();
+                    player.encounter.coordinate = player.current_coordinate;
 
                     zombie.current_coordinate =
                         Zombie::select_initial_location(castle, player, castle.current_floor);
@@ -165,7 +172,11 @@ fn activate_event(
                     player.update_status(PlayerStatus::Win);
                 }
             }
-            Tile::Floor => player.update_status(PlayerStatus::Roam),
+            Tile::Floor => {
+                if !player.in_inventory() {
+                    player.update_status(PlayerStatus::Roam)
+                }
+            }
         };
     }
 }
@@ -295,7 +306,6 @@ async fn main() {
         }
 
         let dt = get_frame_time().min(0.25);
-
         render_castle(&castle, &player, &zombie, &texture_map, &scale_params);
 
         if let Some(t) = &mut transition {
@@ -309,7 +319,15 @@ async fn main() {
             continue;
         }
 
-        Controller::roam(&castle, &mut player, &mut zombie, &dt, &mut game_state);
+        player.open_inventory();
+
+        if player.in_shop() {
+            Controller::shop(&mut player);
+        } else if player.in_inventory() {
+            Controller::inventory(&mut player);
+        } else {
+            Controller::roam(&castle, &mut player, &mut zombie, &dt, &mut game_state);
+        }
 
         Controller::mutate_game_state(&mut game_state);
         if !matches!(game_state, GameState::Win | GameState::Lose) {
@@ -324,7 +342,6 @@ async fn main() {
             &scale_params,
             &mut game_state,
             &mut transition,
-            &dt,
         );
 
         if matches!(game_state, GameState::Paused) {

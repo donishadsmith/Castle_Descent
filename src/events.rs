@@ -34,7 +34,7 @@ pub mod prelude {
                         monster.update_status(EventStatus::Initiated);
                     }
 
-                    //monster.update_status(EventStatus::Complete);
+                    monster.update_status(EventStatus::Complete);
                     Self::escape_event(player, &key, monster);
                 }
                 EventID::FairyEvent(fairy) => {
@@ -65,7 +65,7 @@ pub mod prelude {
             if matches!(key, KeyCode::E) || matches!(entity.current_status(), EventStatus::Complete)
             {
                 player.update_status(PlayerStatus::Roam);
-                player.intended_coordinate = player.current_coordinate;
+                player.encounter.coordinate = player.current_coordinate;
             } else {
                 player.update_status(PlayerStatus::Event);
             }
