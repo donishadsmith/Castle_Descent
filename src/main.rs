@@ -4,7 +4,7 @@ use macroquad::prelude::*;
 use Castle_Descent::{
     castle::{Castle, Tile},
     controller::Controller,
-    //debug_print,
+    debug_print,
     events::prelude::EventID,
     hashmap,
     player::{Player, PlayerStatus},
@@ -20,7 +20,6 @@ struct Transition {
     second_text: String,
 }
 
-// Will be used as an initializer of a few things
 fn initialize() -> (Castle, Player, Zombie) {
     let castle = Castle::generate();
     let player = Player::spawn(&castle);
@@ -83,7 +82,7 @@ fn render_castle(
         }
     }
 
-    if !matches!(player.status, PlayerStatus::Hide) {
+    if player.status != PlayerStatus::Hide {
         draw_asset(
             texture_map.get("player").unwrap(),
             player.current_coordinate,
@@ -106,6 +105,7 @@ fn activate_event(
     scale_params: &DrawTextureParams,
     game_state: &mut GameState,
     transition: &mut Option<Transition>,
+    dt: &f32,
 ) {
     if let Some(tile) = castle.get_mutable_object(player.intended_coordinate) {
         match tile {
@@ -116,7 +116,8 @@ fn activate_event(
                     scale_params.clone(),
                 );
 
-                event.activate(player, game_state)
+                event.activate(player, game_state);
+                event.replace_if_complete();
             }
             Tile::Door(event @ EventID::FairyEvent(_)) => {
                 draw_asset(
@@ -125,7 +126,8 @@ fn activate_event(
                     scale_params.clone(),
                 );
 
-                event.activate(player, game_state)
+                event.activate(player, game_state);
+                event.replace_if_complete();
             }
             Tile::Door(event @ EventID::GenieEvent(_)) => {
                 draw_asset(
@@ -134,10 +136,15 @@ fn activate_event(
                     scale_params.clone(),
                 );
 
-                event.activate(player, game_state)
+                event.activate(player, game_state);
+                event.replace_if_complete();
             }
             Tile::Shop(merchant) => {}
-            Tile::Door(EventID::Empty) => player.update_status(PlayerStatus::Hide),
+            Tile::Door(EventID::Empty) => {
+                if player.status != PlayerStatus::Hide {
+                    player.update_status(PlayerStatus::Hide);
+                }
+            }
             Tile::Door(EventID::Exit) => {
                 if player.current_coordinate.z < castle.floors - 1 {
                     castle.current_floor += 1;
@@ -317,6 +324,7 @@ async fn main() {
             &scale_params,
             &mut game_state,
             &mut transition,
+            &dt,
         );
 
         if matches!(game_state, GameState::Paused) {

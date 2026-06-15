@@ -7,7 +7,7 @@ use crate::{
 use macroquad::input::KeyCode;
 use std::collections::HashMap;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum PlayerStatus {
     Roam,
     Win,

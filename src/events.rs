@@ -34,46 +34,55 @@ pub mod prelude {
                         monster.update_status(EventStatus::Initiated);
                     }
 
-                    if matches!(monster.status, EventStatus::Complete) {
-                        // function that replaces with empty door event
-                    }
-
-                    Self::escape_event(player, &key);
+                    //monster.update_status(EventStatus::Complete);
+                    Self::escape_event(player, &key, monster);
                 }
                 EventID::FairyEvent(fairy) => {
                     if matches!(fairy.status, EventStatus::Uninitiated) {
                         fairy.update_status(EventStatus::Initiated);
                     }
 
-                    if matches!(fairy.status, EventStatus::Complete) {
-                        // function that replaces with empty door event
-                    }
-
-                    Self::escape_event(player, &key)
+                    Self::escape_event(player, &key, fairy)
                 }
                 EventID::GenieEvent(genie) => {
                     if matches!(genie.status, EventStatus::Uninitiated) {
                         genie.update_status(EventStatus::Initiated);
                     }
 
-                    if matches!(genie.status, EventStatus::Complete) {
-                        // function that replaces with empty door event
-                    }
-
-                    Self::escape_event(player, &key)
+                    Self::escape_event(player, &key, genie)
                 }
                 _ => (),
             }
         }
 
-        fn escape_event(player: &mut Player, key: &KeyCode) {
+        fn escape_event<T: EntityStatus<Status = EventStatus>>(
+            player: &mut Player,
+            key: &KeyCode,
+            entity: &mut T,
+        ) {
             // Eventually will replace with logic for running away, E is just
             // for testing and escaping for now
-            if matches!(key, KeyCode::E) {
+            if matches!(key, KeyCode::E) || matches!(entity.current_status(), EventStatus::Complete)
+            {
                 player.update_status(PlayerStatus::Roam);
                 player.intended_coordinate = player.current_coordinate;
             } else {
                 player.update_status(PlayerStatus::Event);
+            }
+        }
+
+        pub fn status(&self) -> Option<EventStatus> {
+            match self {
+                EventID::MonsterEvent(monster) => Some(monster.status),
+                EventID::FairyEvent(fairy) => Some(fairy.status),
+                EventID::GenieEvent(genie) => Some(genie.status),
+                _ => None,
+            }
+        }
+
+        pub fn replace_if_complete(&mut self) {
+            if self.status() == Some(EventStatus::Complete) {
+                *self = EventID::Empty;
             }
         }
     }

@@ -81,7 +81,23 @@ impl Zombie {
             .0
     }
 
-    fn filter_possible_moves(possible_moves: Vec<Coordinate>, castle: &Castle) -> Vec<Coordinate> {
+    fn filter_possible_moves(&self, castle: &Castle) -> Vec<Coordinate> {
+        let mut possible_moves: Vec<Coordinate> = Vec::new();
+
+        for shift in [1, -1] {
+            possible_moves.push(Coordinate::new(
+                self.current_coordinate.x + shift,
+                self.current_coordinate.y,
+                self.current_coordinate.z,
+            ));
+
+            possible_moves.push(Coordinate::new(
+                self.current_coordinate.x,
+                self.current_coordinate.y + shift,
+                self.current_coordinate.z,
+            ));
+        }
+
         let mut filtered_moves: Vec<Coordinate> = Vec::new();
 
         for coord in &possible_moves {
@@ -100,24 +116,7 @@ impl Zombie {
 
         if matches!(self.status, ZombieStatus::Roam) && matches!(player.status, PlayerStatus::Roam)
         {
-            let mut possible_moves: Vec<Coordinate> = Vec::new();
-            // Dont filter every possible floor, just shift by 1 and determine if floors are valid.
-            // Zombie is not allowed to wrap
-            for shift in [1, -1] {
-                possible_moves.push(Coordinate::new(
-                    self.current_coordinate.x + shift,
-                    self.current_coordinate.y,
-                    self.current_coordinate.z,
-                ));
-
-                possible_moves.push(Coordinate::new(
-                    self.current_coordinate.x,
-                    self.current_coordinate.y + shift,
-                    self.current_coordinate.z,
-                ));
-            }
-
-            let filtered_moves = Self::filter_possible_moves(possible_moves, castle);
+            let filtered_moves = self.filter_possible_moves(castle);
             if filtered_moves.contains(&player.current_coordinate) {
                 self.current_coordinate = player.current_coordinate;
             } else {
@@ -149,6 +148,13 @@ impl Zombie {
                     .unwrap();
             }
         }
+    }
+
+    pub fn random_move(&mut self, castle: &Castle) {
+        let mut possible_moves = self.filter_possible_moves(castle);
+        possible_moves.push(self.current_coordinate);
+
+        self.current_coordinate = choose_random_coordinate(&mut possible_moves);
     }
 }
 

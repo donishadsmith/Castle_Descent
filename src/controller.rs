@@ -33,31 +33,49 @@ impl Controller {
             return;
         }
 
-        if player.status != PlayerStatus::Roam {
+        if !matches!(player.status, PlayerStatus::Roam | PlayerStatus::Hide) {
             return;
         }
 
-        if let Some(key) = Controller::get_key()
-            && player.status == PlayerStatus::Roam
-        {
-            // Only accumulate if a key is down else large skipping occurs
-            player.accumulator += dt;
+        let was_hidden = player.status == PlayerStatus::Hide;
+        let key = if was_hidden {
+            Controller::get_press()
+        } else {
+            Controller::get_key()
+        };
 
-            while player.accumulator >= PLAYER_DISPLACEMENT {
-                if matches!(player.status, PlayerStatus::Roam) {
-                    player_keyboard(key, player, castle);
+        if let Some(key) = key {
+            let start_coordinate = player.current_coordinate;
+
+            if was_hidden {
+                player.update_status(PlayerStatus::Roam);
+                player_keyboard(key, player, castle);
+                player.accumulator = 0.0;
+
+                if player.current_coordinate == start_coordinate {
+                    player.update_status(PlayerStatus::Hide);
                 }
-
-                player.accumulator -= PLAYER_DISPLACEMENT;
+            } else {
+                player.accumulator += dt;
+                while player.accumulator >= PLAYER_DISPLACEMENT {
+                    player_keyboard(key, player, castle);
+                    player.accumulator -= PLAYER_DISPLACEMENT;
+                }
             }
         }
-
-        if matches!(game_state, GameState::Active) && matches!(player.status, PlayerStatus::Roam) {
+        if matches!(game_state, GameState::Active)
+            && matches!(player.status, PlayerStatus::Roam | PlayerStatus::Hide)
+        {
             zombie.accumulator += dt;
 
             if zombie.accumulator >= ZOMBIE_DISPLACEMENT {
                 zombie.update_status(ZombieStatus::Roam);
-                zombie.chase_player(player, castle);
+
+                if player.status == PlayerStatus::Hide {
+                    zombie.random_move(castle);
+                } else {
+                    zombie.chase_player(player, castle);
+                }
 
                 zombie.accumulator = 0.0;
             }
@@ -71,6 +89,10 @@ impl Controller {
         }
 
         key_press
+    }
+
+    pub fn get_press() -> Option<KeyCode> {
+        get_keys_pressed().iter().next().cloned()
     }
 
     pub fn mutate_game_state(game_state: &mut GameState) {
