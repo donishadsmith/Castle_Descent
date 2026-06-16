@@ -1,18 +1,11 @@
-// TODO: Just keep everything in the prelude for now for shorter import
-// statements and incase things need to be added, then clean up later.
 pub mod prelude {
-    use std::collections::HashMap;
-
     use macroquad::input::KeyCode;
     use rand::prelude::*;
+    use std::collections::HashMap;
 
-    use crate::{
-        castle::{Castle, Tile},
-        events::prelude::EventID,
-        player::Player,
-    };
+    use crate::castle::Tile;
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Eq, Debug)]
     pub enum GameState {
         Win,
         Lose,
@@ -115,7 +108,7 @@ macro_rules! debug_print {
 macro_rules! hashmap {
     ($($key:expr ; $value:expr),+) => [
         {
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             $(map.insert($key, $value);)*
 
             map

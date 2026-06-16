@@ -3,7 +3,6 @@ TODO:
 - Implement merchant
 - Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each.
 - Add logic for inventory display and selection
-- Clean preludes
 */
 
 // PNG assets from https://emoji.aranja.com/
@@ -23,8 +22,8 @@ use macroquad::prelude::*;
 use crate::{
     castle::{Castle, Tile},
     controller::Controller,
-    events::prelude::EventID,
-    merchant::Item,
+    events::EventID,
+    merchant::{Item, Merchant},
     player::{Player, PlayerStatus},
     utils::prelude::*,
     zombie::{Zombie, ZombieStatus},
@@ -128,6 +127,14 @@ fn render_castle(
         zombie.current_coordinate,
         scale_params.clone(),
     );
+
+    if player.effects.freeze_zombie() {
+        draw_asset(
+            texture_map.get("x").unwrap(),
+            zombie.current_coordinate,
+            scale_params.clone(),
+        );
+    }
 }
 
 fn activate_event(
@@ -171,10 +178,12 @@ fn activate_event(
                 event.activate(player, game_state);
                 event.replace_if_complete();
             }
-            Tile::Shop(merchant) => {
+            Tile::Shop(_) => {
                 if player.status != PlayerStatus::Shop {
                     player.update_status(PlayerStatus::Shop);
                 }
+
+                Merchant::display_shop(&player, &texture_map, scale_params.clone())
             }
             Tile::Door(EventID::Empty) => {
                 if player.status != PlayerStatus::Hide {
@@ -187,6 +196,7 @@ fn activate_event(
                     player.current_coordinate =
                         Player::select_initial_location(castle, castle.current_floor);
                     player.encounter.coordinate = player.current_coordinate;
+                    player.effects.inactivate(Item::CrystalBall);
 
                     zombie.current_coordinate =
                         Zombie::select_initial_location(castle, player, castle.current_floor);
@@ -328,10 +338,12 @@ async fn main() {
     let mut game_state = GameState::Active;
     let mut transition: Option<Transition> = None;
 
-    //player.effects.add_effect(Item::CrystalBall);
+    //player.effects.add(Item::CrystalBall);
+    //player.effects.add(Item::Hourglass);
+    //player.effects.add(Item::Hourglass);
+    //player.effects.add(Item::Hourglass);
 
     loop {
-        zombie.update_status(ZombieStatus::Frozen);
         clear_background(BLACK);
         if game_state == GameState::Quit {
             break;
@@ -352,6 +364,11 @@ async fn main() {
         }
 
         player.open_inventory();
+        // For effects that arent meant to last for the entire level
+        if player.effects.any_active() {
+            zombie.freeze(&mut player, &game_state, dt);
+            player.replenish_stats();
+        }
 
         if player.in_shop() {
             Controller::shop(&mut player);

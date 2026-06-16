@@ -1,10 +1,10 @@
 use macroquad::prelude::*;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
     castle::{Castle, Tile},
     controller::Controller,
-    events::prelude::EventID,
+    events::EventID,
     merchant::Item,
     utils::prelude::*,
     zombie::Zombie,
@@ -106,16 +106,16 @@ impl Inventory {
                 "HP: {} | Mana: {} | Money: {}",
                 player.hp, player.mana, player.money
             ),
-            screen_width() / 4.0,
-            screen_height() / 2.0 + 30.0,
+            screen_x,
+            screen_y + 30.0,
             30.0,
             WHITE,
         );
 
         draw_text(
-            format!("Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)"),
-            screen_width() / 4.0 - 30.0,
-            screen_height() / 2.0 + 60.0,
+            "Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)".to_string(),
+            screen_x - 30.0,
+            screen_y + 60.0,
             20.0,
             WHITE,
         );
@@ -131,7 +131,7 @@ impl Effects {
         Self { active: Vec::new() }
     }
 
-    pub fn remove(&mut self, item: Item) {
+    pub fn inactivate(&mut self, item: Item) {
         self.active.retain(|key| *key != item);
     }
 
@@ -143,22 +143,33 @@ impl Effects {
         self.in_effect(&Item::Hourglass)
     }
 
-    pub fn freeze_time() -> i32 {
-        choose_random_range(5..11)
+    pub fn freeze_time(&self) -> f32 {
+        choose_random_range(5..11) as f32
     }
 
     pub fn in_effect(&self, item: &Item) -> bool {
         self.active.contains(&item)
     }
 
-    pub fn add_effect(&mut self, item: Item) {
-        if !matches!(item.identity(), "hourglass" | "crystal_ball") {
-            return;
-        }
+    pub fn add(&mut self, item: Item) {
+        //if !matches!(item.identity(), "hourglass" | "crystal_ball") {
+        //    return;
+        //}
 
-        if !self.in_effect(&item) {
-            self.active.push(item);
-        }
+        //if !self.in_effect(&item) {
+        //    self.active.push(item);
+        //}
+
+        // Perhaps stacking effects is better
+        self.active.push(item);
+    }
+
+    pub fn any_active(&self) -> bool {
+        self.active.len() > 0
+    }
+
+    pub fn count(&self, item: Item) -> usize {
+        self.active.iter().filter(|&&x| x == item).count()
     }
 }
 
@@ -246,8 +257,55 @@ impl Player {
         }
     }
 
+    pub fn replenish_stats(&mut self) {
+        // Can technically select more than needed since stats cap
+        // at 100, deal with that later
+        if self.effects.in_effect(&Item::Meat) {
+            for _ in 0..self.effects.count(Item::Meat) {
+                while self.hp < 100 {
+                    self.hp += 20
+                }
+
+                if self.hp > 100 {
+                    break;
+                }
+            }
+
+            self.cap_stat("hp");
+        }
+
+        if self.effects.in_effect(&Item::Potion) {
+            for _ in 0..self.effects.count(Item::Potion) {
+                while self.mana < 100 {
+                    self.mana += 20
+                }
+
+                if self.mana > 100 {
+                    break;
+                }
+            }
+
+            self.cap_stat("mana");
+        }
+    }
+
+    fn cap_stat(&mut self, stat: &str) {
+        match stat {
+            "hp" => {
+                self.hp = if self.hp > 100 { 100 } else { self.hp };
+            }
+            _ => {
+                self.mana = if self.hp > 100 { 100 } else { self.mana };
+            }
+        }
+    }
+
     pub fn in_shop(&self) -> bool {
         self.status == PlayerStatus::Shop
+    }
+
+    pub fn in_event(&self) -> bool {
+        self.status == PlayerStatus::Event
     }
 
     pub fn dead(&mut self) {

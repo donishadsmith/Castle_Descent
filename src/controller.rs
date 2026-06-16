@@ -65,6 +65,7 @@ impl Controller {
         }
         if matches!(game_state, GameState::Active)
             && matches!(player.status, PlayerStatus::Roam | PlayerStatus::Hide)
+            && !player.effects.freeze_zombie()
         {
             zombie.accumulator += dt;
 

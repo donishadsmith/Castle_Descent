@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
+use macroquad::prelude::*;
+use strum::Display;
+
 use crate::{
     castle::{Castle, Tile},
+    merchant::Item,
     player::{Player, PlayerStatus},
     utils::prelude::*,
 };
@@ -11,7 +15,7 @@ enum DistanceMetric {
     Chebyshev,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Debug, Display)]
 pub enum ZombieStatus {
     Roam,
     Frozen,
@@ -30,7 +34,7 @@ impl Zombie {
     pub fn spawn(castle: &Castle, player: &Player) -> Self {
         let current_coordinate = Self::select_initial_location(castle, player, 0);
 
-        Zombie {
+        Self {
             status: ZombieStatus::Roam,
             current_coordinate,
             freeze_timer: 0.0,
@@ -106,62 +110,98 @@ impl Zombie {
     }
 
     pub fn chase_player(&mut self, player: &Player, castle: &Castle) {
-        if self.current_coordinate == player.current_coordinate {
+        if self.current_coordinate == player.current_coordinate
+            || !(self.status == ZombieStatus::Roam && player.status == PlayerStatus::Roam)
+        {
             return;
         }
 
-        if matches!(self.status, ZombieStatus::Roam) && matches!(player.status, PlayerStatus::Roam)
-        {
-            let filtered_moves = self.filter_possible_moves(castle);
-            if filtered_moves.contains(&player.current_coordinate) {
-                self.current_coordinate = player.current_coordinate;
-            } else {
-                let mut distance_hashmap: HashMap<Coordinate, i32> = HashMap::new();
-                for coord in &filtered_moves {
-                    distance_hashmap.insert(
-                        *coord,
+        let filtered_moves = self.filter_possible_moves(castle);
+        if filtered_moves.contains(&player.current_coordinate) {
+            self.current_coordinate = player.current_coordinate;
+        } else {
+            let mut distance_hashmap: HashMap<Coordinate, i32> = HashMap::new();
+            for coord in &filtered_moves {
+                distance_hashmap.insert(
+                    *coord,
+                    Self::compute_distance(
+                        &player.current_coordinate,
+                        coord,
+                        DistanceMetric::Chebyshev,
+                    ),
+                );
+            }
+
+            self.current_coordinate = filtered_moves
+                .into_iter()
+                .min_by_key(|c| {
+                    (
                         Self::compute_distance(
                             &player.current_coordinate,
-                            coord,
-                            DistanceMetric::Chebyshev,
+                            c,
+                            DistanceMetric::Euclidean,
                         ),
-                    );
-                }
-
-                self.current_coordinate = filtered_moves
-                    .into_iter()
-                    .min_by_key(|c| {
-                        (
-                            Self::compute_distance(
-                                &player.current_coordinate,
-                                c,
-                                DistanceMetric::Euclidean,
-                            ),
-                            c.x,
-                            c.y,
-                        )
-                    })
-                    .unwrap();
-            }
+                        c.x,
+                        c.y,
+                    )
+                })
+                .unwrap();
         }
     }
 
     pub fn wander(&mut self, castle: &Castle) {
+        if self.status == ZombieStatus::Frozen {
+            return;
+        }
+
         let mut possible_moves = self.filter_possible_moves(castle);
         possible_moves.push(self.current_coordinate);
 
         self.current_coordinate = choose_random_coordinate(&mut possible_moves);
     }
 
-    pub fn decrement_timer(&mut self, dt: &f32) {
-        if self.status == ZombieStatus::Frozen {
-            self.freeze_timer -= dt;
+    pub fn freeze(&mut self, player: &mut Player, game_state: &GameState, dt: f32) {
+        let freeze_active = !player.in_inventory()
+            && player.effects.freeze_zombie()
+            && *game_state == GameState::Active
+            && !player.in_event();
 
-            if self.freeze_timer <= 0.0 {
-                self.freeze_timer = 0.0;
-                self.update_status(ZombieStatus::Roam);
+        if !freeze_active {
+            return;
+        }
+
+        if self.status != ZombieStatus::Frozen {
+            self.update_status(ZombieStatus::Frozen);
+
+            for _ in 0..player.effects.count(Item::Hourglass) {
+                self.freeze_timer += player.effects.freeze_time();
             }
         }
+
+        self.decrement_timer(dt);
+
+        if self.status == ZombieStatus::Roam {
+            player.effects.inactivate(Item::Hourglass);
+        }
+    }
+
+    fn decrement_timer(&mut self, dt: f32) {
+        self.freeze_timer -= dt;
+        if self.freeze_timer <= 0.0 {
+            self.freeze_timer = 0.0;
+            self.update_status(ZombieStatus::Roam);
+        }
+
+        draw_text(
+            format!(
+                "Zombie Freeze Timer: {} seconds",
+                (self.freeze_timer as i32)
+            ),
+            10.0,
+            screen_height() - 50.0,
+            20.0,
+            WHITE,
+        );
     }
 }
 

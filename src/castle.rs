@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use rand::prelude::*;
 use strum::Display;
 
-use crate::{events::prelude::*, merchant::Merchant, utils::prelude::*};
+use crate::{
+    events::{EventID, Fairy, Genie, Monster},
+    merchant::Merchant,
+    utils::prelude::*,
+};
 
 const MIN_FLOORS: i32 = 3;
 const MAX_FLOORS: i32 = 5;
