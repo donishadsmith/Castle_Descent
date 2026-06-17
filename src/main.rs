@@ -17,7 +17,7 @@ mod utils;
 mod zombie;
 
 use ::std::collections::HashMap;
-use macroquad::prelude::*;
+use macroquad::{math::Vec2, prelude::*};
 
 use crate::{
     castle::{Castle, Tile},
@@ -37,6 +37,18 @@ struct Transition {
     second_text: String,
 }
 
+#[derive(Copy, Clone)]
+pub struct Offset {
+    x: f32,
+    y: f32,
+}
+
+impl Offset {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
 fn initialize() -> (Castle, Player, Zombie) {
     let castle = Castle::generate();
     let player = Player::spawn(&castle);
@@ -45,14 +57,26 @@ fn initialize() -> (Castle, Player, Zombie) {
     (castle, player, zombie)
 }
 
-fn draw_asset(asset: &Texture2D, coordinate: Coordinate, scale_params: DrawTextureParams) {
+fn draw_asset(
+    asset: &Texture2D,
+    coordinate: Coordinate,
+    scale_params: DrawTextureParams,
+    offset: Offset,
+) {
     draw_texture_ex(
         asset,
-        coordinate.to_float(Component::X) * TILE_SIZE,
-        coordinate.to_float(Component::Y) * TILE_SIZE,
+        offset.x + coordinate.to_float(Component::X) * TILE_SIZE,
+        offset.y + coordinate.to_float(Component::Y) * TILE_SIZE,
         WHITE,
         scale_params,
     );
+}
+
+fn castle_offset(castle: &Castle) -> Offset {
+    let offset_x = (screen_width() - castle.width as f32 * TILE_SIZE) / 2.0;
+    let offset_y = (screen_height() - castle.depth as f32 * TILE_SIZE) / 2.0;
+
+    Offset::new(offset_x, offset_y)
 }
 
 fn render_castle(
@@ -62,6 +86,8 @@ fn render_castle(
     texture_map: &HashMap<&str, Texture2D>,
     scale_params: &DrawTextureParams,
 ) {
+    let offset = castle_offset(&castle);
+
     for (coordinate, tile) in &castle.layout {
         if coordinate.z != castle.current_floor {
             continue;
@@ -76,6 +102,7 @@ fn render_castle(
                 texture_map.get("player").unwrap(),
                 player.current_coordinate,
                 scale_params.clone(),
+                offset,
             );
         }
 
@@ -99,6 +126,7 @@ fn render_castle(
                     texture_map.get("merchant").unwrap(),
                     *coordinate,
                     scale_params.clone(),
+                    offset,
                 );
             }
 
@@ -117,6 +145,7 @@ fn render_castle(
                     texture_map.get(door_type).unwrap(),
                     *coordinate,
                     scale_params.clone(),
+                    offset,
                 );
             }
         }
@@ -126,6 +155,7 @@ fn render_castle(
         texture_map.get("zombie").unwrap(),
         zombie.current_coordinate,
         scale_params.clone(),
+        offset,
     );
 
     if player.effects.freeze_zombie() {
@@ -133,6 +163,7 @@ fn render_castle(
             texture_map.get("x").unwrap(),
             zombie.current_coordinate,
             scale_params.clone(),
+            offset,
         );
     }
 }
@@ -146,6 +177,7 @@ fn activate_event(
     game_state: &mut GameState,
     transition: &mut Option<Transition>,
 ) {
+    let offset = castle_offset(&castle);
     if let Some(tile) = castle.get_mutable_object(player.encounter.coordinate) {
         match tile {
             Tile::Door(event @ EventID::MonsterEvent(_)) => {
@@ -153,6 +185,7 @@ fn activate_event(
                     texture_map.get("monster").unwrap(),
                     player.encounter.coordinate,
                     scale_params.clone(),
+                    offset,
                 );
 
                 event.activate(player, game_state);
@@ -163,6 +196,7 @@ fn activate_event(
                     texture_map.get("fairy").unwrap(),
                     player.encounter.coordinate,
                     scale_params.clone(),
+                    offset,
                 );
 
                 event.activate(player, game_state);
@@ -173,6 +207,7 @@ fn activate_event(
                     texture_map.get("genie").unwrap(),
                     player.encounter.coordinate,
                     scale_params.clone(),
+                    offset,
                 );
 
                 event.activate(player, game_state);
@@ -298,6 +333,8 @@ fn reset_game(game_state: &mut GameState) -> bool {
 
 #[macroquad::main("Castle Descent")]
 async fn main() {
+    set_fullscreen(true);
+
     let (mut castle, mut player, mut zombie) = initialize();
 
     let door_bytes: &[u8] = include_bytes!("../assets/door.png");

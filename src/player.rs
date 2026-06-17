@@ -85,7 +85,7 @@ impl Inventory {
         texture_map: &HashMap<&str, Texture2D>,
         scale_params: DrawTextureParams,
     ) {
-        let screen_x = screen_width() / 4.0;
+        let screen_x = screen_width() / 2.0;
         let screen_y = screen_height() / 2.0;
 
         let mut increment_y = self.max_space_distance();
@@ -106,7 +106,7 @@ impl Inventory {
                 "HP: {} | Mana: {} | Money: {}",
                 player.hp, player.mana, player.money
             ),
-            screen_x,
+            screen_x - 20.0,
             screen_y + 30.0,
             30.0,
             WHITE,
