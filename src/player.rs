@@ -106,16 +106,16 @@ impl Inventory {
                 "HP: {} | Mana: {} | Money: {}",
                 player.hp, player.mana, player.money
             ),
-            screen_x - 20.0,
-            screen_y + 30.0,
+            screen_x * 0.8,
+            screen_y * 1.1,
             30.0,
             WHITE,
         );
 
         draw_text(
             "Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)".to_string(),
-            screen_x - 30.0,
-            screen_y + 60.0,
+            screen_x * 0.77,
+            screen_y * 1.2,
             20.0,
             WHITE,
         );

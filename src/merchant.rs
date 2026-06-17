@@ -67,16 +67,16 @@ impl Merchant {
 
         draw_text(
             format!("Money: {}", player.money),
-            screen_x - 80.0,
-            screen_y + 90.0,
+            screen_x * 0.9,
+            screen_y * 1.2,
             30.0,
             WHITE,
         );
 
         draw_text(
             "Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)".to_string(),
-            screen_x - 260.0,
-            screen_y + 120.0,
+            screen_x * 0.75,
+            screen_y * 1.3,
             20.0,
             WHITE,
         );

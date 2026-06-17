@@ -272,15 +272,15 @@ fn draw_transparant_screen(
     );
     draw_text(
         first_text,
-        screen_width() / 2.0 - first_x_shift,
-        screen_height() / 2.0 + first_y_shift,
+        screen_width() / 2.0 * first_x_shift,
+        screen_height() / 2.0 * first_y_shift,
         30.0,
         WHITE,
     );
     draw_text(
         second_text,
-        screen_width() / 2.0 - second_x_shift,
-        screen_height() / 2.0 + second_y_shift,
+        screen_width() / 2.0 * second_x_shift,
+        screen_height() / 2.0 * second_y_shift,
         20.0,
         WHITE,
     );
@@ -311,10 +311,10 @@ fn reset_game(game_state: &mut GameState) -> bool {
         draw_transparant_screen(
             text_str,
             "Press 'r' to restart or 'q' to quit.",
-            80.0,
-            160.0,
-            -50.0,
-            -10.0,
+            0.95,
+            0.85,
+            0.95,
+            1.05,
         )
     }
 
@@ -375,7 +375,7 @@ async fn main() {
     let mut game_state = GameState::Active;
     let mut transition: Option<Transition> = None;
 
-    //player.effects.add(Item::CrystalBall);
+    player.effects.add(Item::CrystalBall);
     //player.effects.add(Item::Hourglass);
     //player.effects.add(Item::Hourglass);
     //player.effects.add(Item::Hourglass);
@@ -391,7 +391,7 @@ async fn main() {
 
         if let Some(t) = &mut transition {
             t.remaining -= dt;
-            draw_transparant_screen(&t.first_text, &t.second_text, 100.0, 90.0, -50.0, -10.0);
+            draw_transparant_screen(&t.first_text, &t.second_text, 0.93, 0.945, 0.95, 1.05);
             if t.remaining <= 0.0 {
                 transition = None;
             }
@@ -443,10 +443,10 @@ async fn main() {
             draw_transparant_screen(
                 "Game Paused",
                 "Press any key to continue.",
-                100.0,
-                140.0,
-                -50.0,
-                -10.0,
+                0.95,
+                0.91,
+                1.0,
+                1.1,
             );
 
             zombie.update_status(ZombieStatus::Frozen)
