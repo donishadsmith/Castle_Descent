@@ -375,7 +375,7 @@ async fn main() {
     let mut game_state = GameState::Active;
     let mut transition: Option<Transition> = None;
 
-    player.effects.add(Item::CrystalBall);
+    //player.effects.add(Item::CrystalBall);
     //player.effects.add(Item::Hourglass);
     //player.effects.add(Item::Hourglass);
     //player.effects.add(Item::Hourglass);
