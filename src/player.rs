@@ -7,10 +7,16 @@ use crate::{
     controller::Controller,
     events::EventID,
     item::Item,
-    menu::{Menu, MenuType},
+    math_as,
+    menu::{EventMenu, ItemMenu, MenuType},
     utils::prelude::*,
     zombie::Zombie,
 };
+
+pub enum ActiveMenu {
+    Item(ItemMenu),
+    Event(EventMenu),
+}
 
 #[derive(PartialEq, Debug)]
 pub enum PlayerStatus {
@@ -24,6 +30,11 @@ pub enum PlayerStatus {
 }
 
 impl StatusType for PlayerStatus {}
+
+enum AttackType {
+    Normal,
+    Critical,
+}
 
 pub struct Encounter {
     pub coordinate: Coordinate,
@@ -148,12 +159,12 @@ impl Effects {
 
 pub struct Player {
     pub hp: i32,
-    pub mana: i32,
+    pub hp_limit: i32,
     pub money: i32,
     pub attack_power: (i32, i32),
     pub current_coordinate: Coordinate,
     pub inventory: Inventory,
-    pub menu: Option<Menu>,
+    pub menu: Option<ActiveMenu>,
     pub status: PlayerStatus,
     pub accumulator: f32,
     pub encounter: Encounter,
@@ -169,7 +180,7 @@ impl Player {
 
         Self {
             hp: 100,
-            mana: 100,
+            hp_limit: 100,
             money: 100,
             attack_power: (1, 5),
             current_coordinate,
@@ -246,32 +257,11 @@ impl Player {
                 }
             }
 
-            self.cap_stat("hp");
-        }
-
-        if self.effects.in_effect(&Item::Potion) {
-            for _ in 0..self.effects.count(Item::Potion) {
-                while self.mana < 100 {
-                    self.mana += 20
-                }
-
-                if self.mana > 100 {
-                    break;
-                }
-            }
-
-            self.cap_stat("mana");
-        }
-    }
-
-    fn cap_stat(&mut self, stat: &str) {
-        match stat {
-            "hp" => {
-                self.hp = if self.hp > 100 { 100 } else { self.hp };
-            }
-            _ => {
-                self.mana = if self.hp > 100 { 100 } else { self.mana };
-            }
+            if self.hp > 100 {
+                100
+            } else {
+                self.hp
+            };
         }
     }
 
@@ -305,22 +295,22 @@ impl Player {
             // Both are i32; gives truncated integer
             MenuType::Shop => self.money / item.cost(),
             MenuType::Inventory => {
-                if matches!(item, Item::Meat | Item::Potion) {
-                    self.compute_stat_limit(item)
+                if item == Item::Meat {
+                    let restore_points = 20.0;
+                    let compute_stat_limit = |x: i32| {
+                        math_as!(
+                            math_as!(self.hp_limit, x, f32, "sub"),
+                            restore_points,
+                            f32,
+                            "div"
+                        )
+                        .ceil()
+                    };
+                    compute_stat_limit(self.hp) as i32
                 } else {
                     self.inventory.count(item)
                 }
             }
-        }
-    }
-
-    fn compute_stat_limit(&self, item: Item) -> i32 {
-        let restore_points = 20.0;
-        // Apparantly div_ceil is an library feature?
-        let cap_amount = |x: i32| ((100.0 - x as f32) / restore_points as f32).ceil();
-        match item {
-            Item::Meat => cap_amount(self.hp) as i32,
-            _ => cap_amount(self.mana) as i32,
         }
     }
 

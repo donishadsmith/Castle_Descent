@@ -1,6 +1,7 @@
 /*
 TODO:
-- Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each.
+- Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each (final major feature).
+- Npte, leaving monster without definiting drains hp and money.
 */
 
 // PNG assets from https://emoji.aranja.com/
@@ -15,9 +16,9 @@ use castle_descent::{
     events::EventID,
     hashmap,
     item::Item,
-    menu::{Menu, MenuAction, MenuType},
-    player::{Player, PlayerStatus},
-    utils::{TILE_SIZE, prelude::*},
+    menu::{EventMenu, EventMenuAction, ItemMenu, ItemMenuAction, MenuType},
+    player::{ActiveMenu, Player, PlayerStatus},
+    utils::{Offset, TILE_SIZE, prelude::*},
     zombie::{Zombie, ZombieStatus},
 };
 
@@ -27,24 +28,19 @@ struct Transition {
     second_text: String,
 }
 
-#[derive(Copy, Clone)]
-pub struct Offset {
-    x: f32,
-    y: f32,
-}
-
-impl Offset {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-}
-
 fn initialize() -> (Castle, Player, Zombie) {
     let castle = Castle::generate();
     let player = Player::spawn(&castle);
     let zombie = Zombie::spawn(&castle, &player);
 
     (castle, player, zombie)
+}
+
+pub fn castle_offset(castle: &Castle) -> Offset {
+    let offset_x = (screen_width() - castle.width as f32 * TILE_SIZE) / 2.0;
+    let offset_y = (screen_height() - castle.depth as f32 * TILE_SIZE) / 2.0;
+
+    Offset::new(offset_x, offset_y)
 }
 
 fn draw_asset(
@@ -60,13 +56,6 @@ fn draw_asset(
         WHITE,
         scale_params,
     );
-}
-
-fn castle_offset(castle: &Castle) -> Offset {
-    let offset_x = (screen_width() - castle.width as f32 * TILE_SIZE) / 2.0;
-    let offset_y = (screen_height() - castle.depth as f32 * TILE_SIZE) / 2.0;
-
-    Offset::new(offset_x, offset_y)
 }
 
 fn render_castle(
@@ -156,6 +145,14 @@ fn render_castle(
             offset,
         );
     }
+
+    draw_text(
+        format!("Floor {} of {}", castle.current_floor + 1, castle.floors),
+        screen_width() / 2.0 * 0.92,
+        screen_height() * 0.90,
+        20.0,
+        WHITE,
+    );
 }
 
 fn activate_event(
@@ -164,15 +161,18 @@ fn activate_event(
     zombie: &mut Zombie,
     texture_map: &HashMap<&str, Texture2D>,
     scale_params: &DrawTextureParams,
-    game_state: &mut GameState,
     transition: &mut Option<Transition>,
 ) {
     let offset = castle_offset(castle);
     if let Some(tile) = castle.get_mutable_object(player.encounter.coordinate) {
         match tile {
-            Tile::Door(event @ EventID::MonsterEvent(_)) => {
+            Tile::Door(EventID::MonsterEvent(_)) => {
                 if player.status == PlayerStatus::Inventory {
                     return;
+                }
+
+                if player.status != PlayerStatus::Event {
+                    player.update_status(PlayerStatus::Event);
                 }
 
                 draw_asset(
@@ -181,13 +181,14 @@ fn activate_event(
                     scale_params.clone(),
                     offset,
                 );
-
-                event.activate(player, game_state);
-                event.replace_if_complete();
             }
-            Tile::Door(event @ EventID::FairyEvent(_)) => {
+            Tile::Door(EventID::FairyEvent(_)) => {
                 if player.status == PlayerStatus::Inventory {
                     return;
+                }
+
+                if player.status != PlayerStatus::Event {
+                    player.update_status(PlayerStatus::Event);
                 }
 
                 draw_asset(
@@ -196,13 +197,14 @@ fn activate_event(
                     scale_params.clone(),
                     offset,
                 );
-
-                event.activate(player, game_state);
-                event.replace_if_complete();
             }
-            Tile::Door(event @ EventID::GenieEvent(_)) => {
+            Tile::Door(EventID::GenieEvent(_)) => {
                 if player.status == PlayerStatus::Inventory {
                     return;
+                }
+
+                if player.status != PlayerStatus::Event {
+                    player.update_status(PlayerStatus::Event);
                 }
 
                 draw_asset(
@@ -211,9 +213,6 @@ fn activate_event(
                     scale_params.clone(),
                     offset,
                 );
-
-                event.activate(player, game_state);
-                event.replace_if_complete();
             }
             Tile::Shop => {
                 if player.status != PlayerStatus::Shop {
@@ -348,7 +347,6 @@ async fn main() {
     let crystal_ball_bytes: &[u8] = include_bytes!("../assets/crystal_ball.png");
     let meat_bytes: &[u8] = include_bytes!("../assets/meat.png");
     let hourglass_bytes: &[u8] = include_bytes!("../assets/hourglass.png");
-    let potion_bytes: &[u8] = include_bytes!("../assets/potion.png");
     let x_bytes: &[u8] = include_bytes!("../assets/x.png");
 
     let texture_map: HashMap<&str, Texture2D> = hashmap!(
@@ -363,8 +361,7 @@ async fn main() {
         "crystal_ball" ; Texture2D::from_file_with_format(crystal_ball_bytes, None),
         "meat" ; Texture2D::from_file_with_format(meat_bytes, None),
         "hourglass" ; Texture2D::from_file_with_format(hourglass_bytes, None),
-        "x" ; Texture2D::from_file_with_format(x_bytes, None),
-        "potion" ; Texture2D::from_file_with_format(potion_bytes, None)
+        "x" ; Texture2D::from_file_with_format(x_bytes, None)
     );
 
     let scale_params = DrawTextureParams {
@@ -377,6 +374,7 @@ async fn main() {
 
     loop {
         clear_background(BLACK);
+
         if game_state == GameState::Quit {
             break;
         }
@@ -409,7 +407,7 @@ async fn main() {
                     MenuType::Inventory
                 };
 
-                player.menu = Some(Menu::open(kind));
+                player.menu = Some(ActiveMenu::Item(ItemMenu::open(kind)));
             }
 
             let items = if player.in_shop() {
@@ -423,32 +421,70 @@ async fn main() {
                 player.inventory.max_space_distance()
             };
 
-            if let Some(mut menu) = player.menu.take() {
-                let kind = menu.kind();
-                let action = menu.display(
-                    &player,
-                    &items,
-                    &texture_map,
-                    max_distance,
-                    scale_params.clone(),
-                );
-                player.menu = Some(menu);
+            if let Some(menu) = player.menu.take() {
+                match menu {
+                    ActiveMenu::Item(mut item_menu) => {
+                        let kind = item_menu.kind();
+                        let action = item_menu.display(
+                            &player,
+                            &items,
+                            &texture_map,
+                            max_distance,
+                            scale_params.clone(),
+                        );
 
-                match action {
-                    MenuAction::Close => {
-                        player.menu = None;
-                        player.update_status(PlayerStatus::Roam);
-                        if *castle.get_ref_object(player.encounter.coordinate).unwrap()
-                            == Tile::Shop
-                        {
-                            player.encounter.coordinate = player.current_coordinate;
+                        player.menu = Some(ActiveMenu::Item(item_menu));
+
+                        match action {
+                            ItemMenuAction::Close => {
+                                player.menu = None;
+                                player.update_status(PlayerStatus::Roam);
+                                if *castle.get_ref_object(player.encounter.coordinate).unwrap()
+                                    == Tile::Shop
+                                {
+                                    player.encounter.coordinate = player.current_coordinate;
+                                }
+                            }
+                            ItemMenuAction::Confirm(item, quantity) => match kind {
+                                MenuType::Shop => player.buy(item, quantity),
+                                MenuType::Inventory => player.use_item(item, quantity),
+                            },
+                            ItemMenuAction::None => {}
                         }
                     }
-                    MenuAction::Confirm(item, quantity) => match kind {
-                        MenuType::Shop => player.buy(item, quantity),
-                        MenuType::Inventory => player.use_item(item, quantity),
-                    },
-                    MenuAction::None => {}
+
+                    _ => (),
+                }
+            }
+        } else if player.in_event() && game_state == GameState::Active {
+            if player.menu.is_none() {
+                player.menu = Some(ActiveMenu::Event(EventMenu::open()));
+            }
+
+            let offset = castle_offset(&castle);
+
+            if let Some(menu) = player.menu.take() {
+                match menu {
+                    ActiveMenu::Event(mut event_menu) => {
+                        let action = if let Some(Tile::Door(event)) =
+                            castle.get_ref_object(player.encounter.coordinate)
+                        {
+                            event_menu.display(&player, event, offset)
+                        } else {
+                            EventMenuAction::None
+                        };
+                        player.menu = Some(ActiveMenu::Event(event_menu));
+
+                        if let Some(Tile::Door(event)) =
+                            castle.get_mutable_object(player.encounter.coordinate)
+                        {
+                            event.resolve(&mut player, action);
+                        }
+                        if matches!(action, EventMenuAction::Select("Leave")) {
+                            player.menu = None;
+                        }
+                    }
+                    _ => (),
                 }
             }
         } else {
@@ -468,14 +504,13 @@ async fn main() {
             &mut zombie,
             &texture_map,
             &scale_params,
-            &mut game_state,
             &mut transition,
         );
 
         if matches!(game_state, GameState::Paused) {
             draw_transparant_screen(
                 "Game Paused",
-                "Press any key to continue.",
+                "Press escape to continue.",
                 0.95,
                 0.91,
                 1.0,

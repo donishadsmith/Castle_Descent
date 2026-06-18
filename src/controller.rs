@@ -8,9 +8,9 @@ use crate::{
 };
 
 const PLAYER_DISPLACEMENT: f32 = 0.10;
-const ZOMBIE_DISPLACEMENT: f32 = 0.90;
+//const ZOMBIE_DISPLACEMENT: f32 = 0.90;
 
-//const ZOMBIE_DISPLACEMENT: f32 = 10e37;
+const ZOMBIE_DISPLACEMENT: f32 = 10e37;
 
 fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
     if matches!(
@@ -123,11 +123,11 @@ impl Controller {
     fn pause(key: &KeyCode, game_state: &mut GameState) {
         if matches!(key, KeyCode::P) {
             *game_state = GameState::Paused;
-        } 
+        }
     }
 
     fn resume(key: &KeyCode, game_state: &mut GameState) {
-        if *game_state == GameState::Paused && matches!(key, KeyCode::Escape){
+        if *game_state == GameState::Paused && matches!(key, KeyCode::Escape) {
             *game_state = GameState::Active;
         }
     }

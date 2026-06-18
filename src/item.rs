@@ -6,7 +6,6 @@ pub enum Item {
     CrystalBall,
     Hourglass,
     Meat,
-    Potion,
 }
 
 impl Item {
@@ -15,7 +14,6 @@ impl Item {
             Item::CrystalBall => "Crystal Ball: Reveals the exit.",
             Item::Hourglass => "Hourglass: Freezes zombie temporarily (5-10 seconds).",
             Item::Meat => "Meat: Heals 20 hp.",
-            Item::Potion => "Potion: Restores 20 mana.",
         }
     }
 
@@ -31,7 +29,6 @@ impl Item {
             Item::CrystalBall => "crystal_ball",
             Item::Hourglass => "hourglass",
             Item::Meat => "meat",
-            Item::Potion => "potion",
         }
     }
 

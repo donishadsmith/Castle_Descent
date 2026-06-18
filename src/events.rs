@@ -1,11 +1,20 @@
-use macroquad::input::KeyCode;
+use macroquad::prelude::*;
 use strum::Display;
 
 use crate::{
     controller::Controller,
-    player::{Player, PlayerStatus},
+    menu::EventMenuAction,
+    player::{ActiveMenu, Player, PlayerStatus},
     utils::prelude::*,
 };
+
+pub trait PlayableEvent {
+    fn options(&self) -> &[&'static str];
+
+    fn count(&self) -> usize {
+        self.options().len()
+    }
+}
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum EventID {
@@ -18,57 +27,6 @@ pub enum EventID {
 
 // Just keep sequences in one implementation
 impl EventID {
-    pub fn activate(&mut self, player: &mut Player, game_state: &mut GameState) {
-        if *game_state != GameState::Active {
-            return;
-        }
-
-        let Some(key) = Controller::get_key() else {
-            return;
-        };
-
-        match self {
-            EventID::MonsterEvent(monster) => {
-                if matches!(monster.status, EventStatus::Uninitiated) {
-                    monster.update_status(EventStatus::Initiated);
-                }
-
-                //monster.update_status(EventStatus::Complete);
-                Self::escape_event(player, &key, monster);
-            }
-            EventID::FairyEvent(fairy) => {
-                if matches!(fairy.status, EventStatus::Uninitiated) {
-                    fairy.update_status(EventStatus::Initiated);
-                }
-
-                Self::escape_event(player, &key, fairy)
-            }
-            EventID::GenieEvent(genie) => {
-                if matches!(genie.status, EventStatus::Uninitiated) {
-                    genie.update_status(EventStatus::Initiated);
-                }
-
-                Self::escape_event(player, &key, genie)
-            }
-            _ => (),
-        }
-    }
-
-    fn escape_event<T: EntityStatus<Status = EventStatus>>(
-        player: &mut Player,
-        key: &KeyCode,
-        entity: &mut T,
-    ) {
-        // Eventually will replace with logic for running away, E is just
-        // for testing and escaping for now
-        if matches!(key, KeyCode::E) || matches!(entity.current_status(), EventStatus::Complete) {
-            player.update_status(PlayerStatus::Roam);
-            player.encounter.coordinate = player.current_coordinate;
-        } else {
-            player.update_status(PlayerStatus::Event);
-        }
-    }
-
     pub fn status(&self) -> Option<EventStatus> {
         match self {
             EventID::MonsterEvent(monster) => Some(monster.status),
@@ -81,6 +39,70 @@ impl EventID {
     pub fn replace_if_complete(&mut self) {
         if self.status() == Some(EventStatus::Complete) {
             *self = EventID::Empty;
+        }
+    }
+
+    pub fn options(&self) -> &[&'static str] {
+        match self {
+            EventID::MonsterEvent(monster) => monster.options(),
+            EventID::FairyEvent(fairy) => fairy.options(),
+            EventID::GenieEvent(genie) => genie.options(),
+            _ => &[],
+        }
+    }
+
+    pub fn hp(&self) -> i32 {
+        match self {
+            EventID::MonsterEvent(monster) => monster.hp,
+            _ => 0,
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        match self {
+            EventID::MonsterEvent(monster) => monster.count(),
+            EventID::GenieEvent(genie) => genie.count(),
+            EventID::FairyEvent(fairy) => fairy.count(),
+            _ => 0,
+        }
+    }
+
+    pub fn identity(&self) -> &str {
+        match self {
+            EventID::MonsterEvent(_) => "monster",
+            EventID::GenieEvent(_) => "genie",
+            EventID::FairyEvent(_) => "fairy",
+            _ => "other",
+        }
+    }
+
+    pub fn resolve(&mut self, player: &mut Player, action: EventMenuAction) {
+        match self {
+            EventID::MonsterEvent(monster) => {
+                if matches!(monster.status, EventStatus::Uninitiated) {
+                    monster.update_status(EventStatus::Initiated);
+                }
+            }
+            EventID::FairyEvent(fairy) => {
+                if matches!(fairy.status, EventStatus::Uninitiated) {
+                    fairy.update_status(EventStatus::Initiated);
+                }
+                if matches!(action, EventMenuAction::Select("Heal")) {
+                    player.hp = 100;
+                    fairy.update_status(EventStatus::Complete);
+                }
+            }
+            EventID::GenieEvent(genie) => {}
+            _ => {}
+        }
+
+        if matches!(self.status(), Some(EventStatus::Complete))
+            || matches!(action, EventMenuAction::Select("Leave"))
+        {
+            player.update_status(PlayerStatus::Roam);
+            player.encounter.coordinate = player.current_coordinate;
+        } else {
+            player.update_status(PlayerStatus::Event);
         }
     }
 }
@@ -97,17 +119,23 @@ impl StatusType for EventStatus {}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Fairy {
     pub status: EventStatus,
+    pub encounter_text: &'static str,
+    pub options: [&'static str; 2],
 }
 
 impl Fairy {
     pub fn spawn() -> Self {
         Self {
             status: EventStatus::Uninitiated,
+            encounter_text: "You encountered a fairy!",
+            options: ["Heal (Full Health)", "Leave"],
         }
     }
 
-    pub fn restore_hp(player: &mut Player) {
-        player.hp = 100;
+    fn restore_hp(player: &mut Player, action: EventMenuAction) {
+        if action == EventMenuAction::Select("Heal") {
+            player.hp = 100;
+        }
     }
 }
 
@@ -121,15 +149,25 @@ impl EntityStatus for Fairy {
     }
 }
 
+impl PlayableEvent for Fairy {
+    fn options(&self) -> &[&'static str] {
+        &self.options
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Genie {
     pub status: EventStatus,
+    pub encounter_text: &'static str,
+    pub options: [&'static str; 3],
 }
 
 impl Genie {
     pub fn spawn() -> Self {
         Self {
             status: EventStatus::Uninitiated,
+            encounter_text: "You encountered a Genie!",
+            options: ["Increase HP", "Increase Attack", "Leave"],
         }
     }
 }
@@ -144,12 +182,20 @@ impl EntityStatus for Genie {
     }
 }
 
+impl PlayableEvent for Genie {
+    fn options(&self) -> &[&'static str] {
+        &self.options
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Monster {
     pub hp: i32,
     pub money: i32,
     pub attack_power: (i32, i32),
     pub status: EventStatus,
+    pub encounter_text: &'static str,
+    pub options: [&'static str; 2],
 }
 
 impl Monster {
@@ -159,6 +205,8 @@ impl Monster {
             money,
             attack_power,
             status: EventStatus::Uninitiated,
+            encounter_text: "You encountered a Monster!",
+            options: ["Attack", "Leave"],
         }
     }
 }
@@ -170,5 +218,11 @@ impl EntityStatus for Monster {
 
     fn current_status(&mut self) -> &mut EventStatus {
         &mut self.status
+    }
+}
+
+impl PlayableEvent for Monster {
+    fn options(&self) -> &[&'static str] {
+        &self.options
     }
 }

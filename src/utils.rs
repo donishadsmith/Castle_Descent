@@ -1,3 +1,7 @@
+use macroquad::prelude::*;
+
+use crate::castle::Castle;
+
 pub const TILE_SIZE: f32 = 32.0;
 
 pub mod prelude {
@@ -99,6 +103,18 @@ pub mod prelude {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct Offset {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Offset {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
 #[macro_export]
 macro_rules! debug_print {
     ($(($statement:expr, $object:expr)),+) => {
@@ -116,4 +132,16 @@ macro_rules! hashmap {
             map
         }
     ]
+}
+
+#[macro_export]
+macro_rules! math_as {
+    ($x:expr, $y:expr, $t:ty, $op:expr) => {
+        match $op {
+            "add" => $x as $t + $y as $t,
+            "sub" => $x as $t - $y as $t,
+            "prod" => $x as $t * $y as $t,
+            _ => $x as $t / $y as $t,
+        }
+    };
 }

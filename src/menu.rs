@@ -2,8 +2,13 @@ use std::collections::HashMap;
 
 use ::macroquad::prelude::*;
 
-use crate::utils::TILE_SIZE;
-use crate::{controller::Controller, item::Item, player::Player};
+use crate::{
+    controller::Controller,
+    events::EventID,
+    item::Item,
+    player::Player,
+    utils::{Offset, TILE_SIZE},
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum MenuType {
@@ -11,7 +16,7 @@ pub enum MenuType {
     Shop,
 }
 
-pub enum MenuAction {
+pub enum ItemMenuAction {
     None,
     Confirm(Item, i32),
     Close,
@@ -23,11 +28,11 @@ enum MenuMode {
     Quantity { amount: i32 },
 }
 
-struct Cursor {
+pub struct MenuCursor {
     index: isize,
 }
 
-impl Cursor {
+impl MenuCursor {
     fn start() -> Self {
         Self { index: 0 }
     }
@@ -61,22 +66,26 @@ impl Cursor {
         }
     }
 
-    fn selected(&self, items: &[(Item, i32)]) -> Option<Item> {
+    fn item_selected(&self, items: &[(Item, i32)]) -> Option<Item> {
         items.get(self.current(items.len())).map(|(item, _)| *item)
+    }
+
+    fn text_selected(&self, options: &[&'static str]) -> Option<&'static str> {
+        options.get(self.current(options.len())).map(|text| *text)
     }
 }
 
-pub struct Menu {
+pub struct ItemMenu {
     kind: MenuType,
-    cursor: Cursor,
+    cursor: MenuCursor,
     mode: MenuMode,
 }
 
-impl Menu {
+impl ItemMenu {
     pub fn open(kind: MenuType) -> Self {
         Self {
             kind,
-            cursor: Cursor::start(),
+            cursor: MenuCursor::start(),
             mode: MenuMode::Browse,
         }
     }
@@ -92,22 +101,20 @@ impl Menu {
         texture_map: &HashMap<&str, Texture2D>,
         max_distance: f32,
         scale_params: DrawTextureParams,
-    ) -> MenuAction {
+    ) -> ItemMenuAction {
         let key = Controller::get_press();
 
-        let mut action = MenuAction::None;
+        let mut action = ItemMenuAction::None;
         self.mode = match (self.mode, key) {
-            (MenuMode::Browse, Some(KeyCode::Enter)) if !items.is_empty() => {
-                MenuMode::Quantity { amount: 0 }
-            }
+            (MenuMode::Browse, Some(KeyCode::Enter)) => MenuMode::Quantity { amount: 0 },
             (MenuMode::Browse, Some(KeyCode::Backspace)) => {
-                action = MenuAction::Close;
+                action = ItemMenuAction::Close;
                 MenuMode::Browse
             }
             (MenuMode::Quantity { .. }, Some(KeyCode::Backspace)) => MenuMode::Browse,
             (MenuMode::Quantity { amount }, Some(KeyCode::Enter)) => {
-                if let Some(item) = self.cursor.selected(items) {
-                    action = MenuAction::Confirm(item, amount);
+                if let Some(item) = self.cursor.item_selected(items) {
+                    action = ItemMenuAction::Confirm(item, amount);
                 }
 
                 MenuMode::Browse
@@ -120,12 +127,12 @@ impl Menu {
             MenuMode::Browse => self.cursor.scroll(key, items.len(), false),
             MenuMode::Quantity { amount } => match key {
                 Some(KeyCode::Left) => {
-                    let item = self.cursor.selected(items).unwrap();
+                    let item = self.cursor.item_selected(items).unwrap();
                     *amount -= 1;
                     *amount = amount.rem_euclid(player.item_limit(item, &self.kind) + 1);
                 }
                 Some(KeyCode::Right) => {
-                    let item = self.cursor.selected(items).unwrap();
+                    let item = self.cursor.item_selected(items).unwrap();
                     *amount += 1;
                     *amount = amount.rem_euclid(player.item_limit(item, &self.kind) + 1);
                 }
@@ -148,43 +155,43 @@ impl Menu {
     ) {
         let screen_x = screen_width() / 2.0;
         let screen_y = screen_height() / 2.0;
-        let selected_row = self.cursor.current(items.len());
+        let item_selected_row = self.cursor.current(items.len());
 
-        let mut y = screen_y + max_distance;
+        let mut shift_y = screen_y + max_distance;
 
         for (index, (item, n)) in items.iter().enumerate() {
             draw_texture_ex(
                 texture_map.get(item.identity_to_str()).unwrap(),
                 screen_x * 0.40,
-                y,
+                shift_y,
                 WHITE,
                 scale_params.clone(),
             );
 
-            let y_anchor = y + TILE_SIZE / 2.0;
+            let anchor_y = shift_y + TILE_SIZE / 2.0;
             draw_text(
                 n.to_string(),
                 screen_x * 0.42 + TILE_SIZE + 8.0,
-                y_anchor + 3.0,
+                anchor_y + 3.0,
                 24.0,
                 WHITE,
             );
 
-            if index == selected_row {
+            if index == item_selected_row {
                 // y is top of asset
                 draw_triangle(
-                    vec2(screen_x * 0.38 - 8.0, y_anchor),
-                    vec2(screen_x * 0.38 - 24.0, y_anchor - 10.0),
-                    vec2(screen_x * 0.38 - 24.0, y_anchor + 10.0),
+                    vec2(screen_x * 0.38 - 8.0, anchor_y),
+                    vec2(screen_x * 0.38 - 24.0, anchor_y - 10.0),
+                    vec2(screen_x * 0.38 - 24.0, anchor_y + 10.0),
                     YELLOW,
                 );
 
                 let description_start_x = screen_x * 0.50 + TILE_SIZE + 8.0;
-                if let Some(item) = self.cursor.selected(items) {
+                if let Some(item) = self.cursor.item_selected(items) {
                     draw_text(
                         item.description(),
                         description_start_x,
-                        y_anchor,
+                        anchor_y,
                         20.0,
                         WHITE,
                     );
@@ -193,44 +200,44 @@ impl Menu {
                     if let MenuMode::Quantity { amount } = self.mode {
                         self.draw_quantity(
                             description_start_x + dims.width + TILE_SIZE * 2.0,
-                            y_anchor - 4.0,
+                            anchor_y - 4.0,
                             amount,
                         );
                     }
                 }
             }
 
-            y += 60.0;
+            shift_y += 60.0;
         }
 
         let (stats, help) = self.text(player);
-        draw_text(&stats, screen_x * 0.8, screen_y * 1.3, 30.0, WHITE);
+        draw_text(&stats, screen_x * 0.8, screen_y * 1.1, 30.0, WHITE);
 
         let shift_text_x = if matches!(self.kind, MenuType::Shop) {
             0.58
         } else {
-            0.77
+            0.64
         };
-        draw_text(&help, screen_x * shift_text_x, screen_y * 1.4, 20.0, WHITE);
+        draw_text(&help, screen_x * shift_text_x, screen_y * 1.2, 20.0, WHITE);
     }
 
-    fn draw_quantity(&self, center_x: f32, y_anchor: f32, amount: i32) {
+    fn draw_quantity(&self, center_x: f32, anchor_y: f32, amount: i32) {
         let gap = 30.0;
         let len = 16.0;
         let half_h = 10.0;
 
         // Left triangle
         draw_triangle(
-            vec2(center_x - gap - len, y_anchor),
-            vec2(center_x - gap, y_anchor - half_h),
-            vec2(center_x - gap, y_anchor + half_h),
+            vec2(center_x - gap - len, anchor_y),
+            vec2(center_x - gap, anchor_y - half_h),
+            vec2(center_x - gap, anchor_y + half_h),
             YELLOW,
         );
         // Right triangle
         draw_triangle(
-            vec2(center_x + gap + len, y_anchor),
-            vec2(center_x + gap, y_anchor - half_h),
-            vec2(center_x + gap, y_anchor + half_h),
+            vec2(center_x + gap + len, anchor_y),
+            vec2(center_x + gap, anchor_y - half_h),
+            vec2(center_x + gap, anchor_y + half_h),
             YELLOW,
         );
 
@@ -239,7 +246,7 @@ impl Menu {
         draw_text(
             &text,
             center_x - dims.width / 2.0,
-            y_anchor + dims.height / 2.0,
+            anchor_y + dims.height / 2.0,
             30.0,
             WHITE,
         );
@@ -247,10 +254,7 @@ impl Menu {
 
     fn text(&self, player: &Player) -> (String, String) {
         let stats = match self.kind {
-            MenuType::Inventory => format!(
-                "HP: {} | Mana: {} | Money: {}",
-                player.hp, player.mana, player.money
-            ),
+            MenuType::Inventory => format!("HP: {} | Money: {}", player.hp, player.money),
             MenuType::Shop => format!("Money: {}", player.money),
         };
 
@@ -264,5 +268,118 @@ impl Menu {
         };
 
         (stats, help)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EventMenuAction {
+    None,
+    Browse,
+    Select(&'static str),
+}
+
+pub struct EventMenu {
+    pub mode: EventMenuAction,
+    cursor: MenuCursor,
+}
+
+impl EventMenu {
+    pub fn open() -> Self {
+        Self {
+            mode: EventMenuAction::Browse,
+            cursor: MenuCursor::start(),
+        }
+    }
+
+    pub fn display(
+        &mut self,
+        player: &Player,
+        entity: &EventID,
+        offset: Offset,
+    ) -> EventMenuAction {
+        let key = Controller::get_press();
+        let mut action = EventMenuAction::None;
+
+        match key {
+            Some(KeyCode::Enter) => {
+                if let Some(text) = self.cursor.text_selected(entity.options()) {
+                    action = EventMenuAction::Select(text);
+                }
+            }
+            _ => self.cursor.scroll(key, entity.count(), true),
+        }
+
+        self.draw(player, entity, offset);
+
+        action
+    }
+
+    fn draw(&self, player: &Player, entity: &EventID, offset: Offset) {
+        let screen_y = screen_height();
+
+        draw_text(
+            self.stats_text(player, entity),
+            offset.x + 30.0,
+            screen_y * 0.78,
+            20.0,
+            WHITE,
+        );
+
+        let width = match entity.identity() {
+            "genie" => 500.0,
+            "fairy" => 400.0,
+            _ => 300.0,
+        };
+
+        let adjust_x = match entity.identity() {
+            "genie" => -60.0,
+            "fairy" => -40.0,
+            _ => 20.0,
+        };
+
+        draw_rectangle_lines(
+            offset.x + adjust_x,
+            screen_height() * 0.80,
+            width,
+            70.0,
+            2.0,
+            WHITE,
+        );
+
+        let mut text_shift_x = 0.0;
+        let add_n = match entity.identity() {
+            "monster" => 100.0,
+            _ => 150.0,
+        };
+
+        for (index, option) in entity.options().iter().enumerate() {
+            draw_text(
+                option.to_string(),
+                offset.x + adjust_x + 60.0 + text_shift_x,
+                screen_y * 0.84,
+                20.0,
+                WHITE,
+            );
+
+            let anchor_x = offset.x + adjust_x + 60.0 + text_shift_x;
+            if index as isize == self.cursor.index {
+                let y = screen_y * 0.84 - 6.0;
+                draw_triangle(
+                    vec2(anchor_x - 8.0, y),
+                    vec2(anchor_x - 24.0, y - 8.0),
+                    vec2(anchor_x - 24.0, y + 8.0),
+                    YELLOW,
+                );
+            }
+
+            text_shift_x += add_n;
+        }
+    }
+
+    fn stats_text(&self, player: &Player, entity: &EventID) -> String {
+        match entity.identity() {
+            "monster" => format!("Monster HP: {} | Player HP: {}", entity.hp(), player.hp),
+            _ => format!("Player HP: {}", player.hp),
+        }
     }
 }
