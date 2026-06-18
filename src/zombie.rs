@@ -5,7 +5,7 @@ use strum::Display;
 
 use crate::{
     castle::{Castle, Tile},
-    merchant::Item,
+    item::Item,
     player::{Player, PlayerStatus},
     utils::prelude::*,
 };
@@ -197,8 +197,8 @@ impl Zombie {
                 "Zombie Freeze Timer: {} seconds",
                 (self.freeze_timer as i32)
             ),
-            10.0,
-            screen_height() - 50.0,
+            screen_width() / 2.0 * 0.90,
+            screen_height() * 0.95,
             20.0,
             WHITE,
         );

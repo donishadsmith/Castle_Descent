@@ -5,7 +5,6 @@ use strum::Display;
 
 use crate::{
     events::{EventID, Fairy, Genie, Monster},
-    merchant::Merchant,
     utils::prelude::*,
 };
 
@@ -18,7 +17,7 @@ const MAX_LENGTH: i32 = 15;
 pub enum Tile {
     Door(EventID),
     Floor,
-    Shop(Merchant),
+    Shop,
 }
 
 impl Tile {
@@ -84,10 +83,7 @@ impl Castle {
             let merch_x = choose_random_value(&merch_x_coords);
             let merch_y = choose_random_value(&merch_y_coords);
 
-            layout.insert(
-                Coordinate::new(merch_x, merch_y, floor),
-                Tile::Shop(Merchant {}),
-            );
+            layout.insert(Coordinate::new(merch_x, merch_y, floor), Tile::Shop);
         }
     }
 
@@ -100,6 +96,8 @@ impl Castle {
         Self::insert_special_tiles(layout, width, depth, floors);
 
         let mut monster_hp_range: Vec<i32> = (5..=10).collect();
+        let mut monster_attack_power = (1, 5);
+        let compute_money = |hp| ((hp as f32) / 4.0).ceil() as i32;
 
         for z in 0..floors {
             for x in 0..width {
@@ -114,6 +112,8 @@ impl Castle {
                                 let current_monster_hp = choose_random_value(&monster_hp_range);
                                 Tile::Door(EventID::MonsterEvent(Monster::spawn(
                                     current_monster_hp,
+                                    compute_money(current_monster_hp),
+                                    (monster_attack_power.0, monster_attack_power.1),
                                 )))
                             }
                             9 => Tile::Door(EventID::FairyEvent(Fairy::spawn())),
@@ -127,6 +127,8 @@ impl Castle {
             }
 
             monster_hp_range = monster_hp_range.iter().map(|x| x + 5).collect::<Vec<i32>>();
+            monster_attack_power.0 += 5;
+            monster_attack_power.1 += 5;
         }
     }
 

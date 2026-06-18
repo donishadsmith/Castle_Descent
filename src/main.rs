@@ -1,35 +1,25 @@
 /*
 TODO:
-- Implement merchant
 - Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each.
-- Add logic for inventory display and selection
 */
 
 // PNG assets from https://emoji.aranja.com/
-// if needed later, go back to having a library + binary crate
-
-mod castle;
-mod controller;
-mod events;
-mod merchant;
-mod player;
-mod utils;
-mod zombie;
 
 use ::std::collections::HashMap;
-use macroquad::{math::Vec2, prelude::*};
+use macroquad::prelude::*;
 
-use crate::{
+use castle_descent::{
     castle::{Castle, Tile},
     controller::Controller,
+    debug_print,
     events::EventID,
-    merchant::{Item, Merchant},
+    hashmap,
+    item::Item,
+    menu::{Menu, MenuAction, MenuType},
     player::{Player, PlayerStatus},
-    utils::prelude::*,
+    utils::{TILE_SIZE, prelude::*},
     zombie::{Zombie, ZombieStatus},
 };
-
-const TILE_SIZE: f32 = 32.0;
 
 struct Transition {
     remaining: f32,
@@ -86,7 +76,7 @@ fn render_castle(
     texture_map: &HashMap<&str, Texture2D>,
     scale_params: &DrawTextureParams,
 ) {
-    let offset = castle_offset(&castle);
+    let offset = castle_offset(castle);
 
     for (coordinate, tile) in &castle.layout {
         if coordinate.z != castle.current_floor {
@@ -114,14 +104,14 @@ fn render_castle(
         match tile {
             Tile::Floor => {
                 draw_rectangle(
-                    coordinate.to_float(Component::X) * TILE_SIZE,
-                    coordinate.to_float(Component::Y) * TILE_SIZE,
+                    offset.x + coordinate.to_float(Component::X) * TILE_SIZE,
+                    offset.y + coordinate.to_float(Component::Y) * TILE_SIZE,
                     TILE_SIZE,
                     TILE_SIZE,
                     BLACK,
                 );
             }
-            Tile::Shop(_) => {
+            Tile::Shop => {
                 draw_asset(
                     texture_map.get("merchant").unwrap(),
                     *coordinate,
@@ -177,10 +167,14 @@ fn activate_event(
     game_state: &mut GameState,
     transition: &mut Option<Transition>,
 ) {
-    let offset = castle_offset(&castle);
+    let offset = castle_offset(castle);
     if let Some(tile) = castle.get_mutable_object(player.encounter.coordinate) {
         match tile {
             Tile::Door(event @ EventID::MonsterEvent(_)) => {
+                if player.status == PlayerStatus::Inventory {
+                    return;
+                }
+
                 draw_asset(
                     texture_map.get("monster").unwrap(),
                     player.encounter.coordinate,
@@ -192,6 +186,10 @@ fn activate_event(
                 event.replace_if_complete();
             }
             Tile::Door(event @ EventID::FairyEvent(_)) => {
+                if player.status == PlayerStatus::Inventory {
+                    return;
+                }
+
                 draw_asset(
                     texture_map.get("fairy").unwrap(),
                     player.encounter.coordinate,
@@ -203,6 +201,10 @@ fn activate_event(
                 event.replace_if_complete();
             }
             Tile::Door(event @ EventID::GenieEvent(_)) => {
+                if player.status == PlayerStatus::Inventory {
+                    return;
+                }
+
                 draw_asset(
                     texture_map.get("genie").unwrap(),
                     player.encounter.coordinate,
@@ -213,12 +215,10 @@ fn activate_event(
                 event.activate(player, game_state);
                 event.replace_if_complete();
             }
-            Tile::Shop(_) => {
+            Tile::Shop => {
                 if player.status != PlayerStatus::Shop {
                     player.update_status(PlayerStatus::Shop);
                 }
-
-                Merchant::display_shop(&player, &texture_map, scale_params.clone())
             }
             Tile::Door(EventID::Empty) => {
                 if player.status != PlayerStatus::Hide {
@@ -311,7 +311,7 @@ fn reset_game(game_state: &mut GameState) -> bool {
         draw_transparant_screen(
             text_str,
             "Press 'r' to restart or 'q' to quit.",
-            0.95,
+            0.97,
             0.85,
             0.95,
             1.05,
@@ -375,11 +375,6 @@ async fn main() {
     let mut game_state = GameState::Active;
     let mut transition: Option<Transition> = None;
 
-    //player.effects.add(Item::CrystalBall);
-    //player.effects.add(Item::Hourglass);
-    //player.effects.add(Item::Hourglass);
-    //player.effects.add(Item::Hourglass);
-
     loop {
         clear_background(BLACK);
         if game_state == GameState::Quit {
@@ -401,23 +396,61 @@ async fn main() {
         }
 
         player.open_inventory();
-        // For effects that arent meant to last for the entire level
         if player.effects.any_active() {
             zombie.freeze(&mut player, &game_state, dt);
             player.replenish_stats();
         }
 
-        if player.in_shop() {
-            Controller::shop(&mut player);
-        } else if player.in_inventory() {
-            //player.inventory.add_item(Item::CrystalBall);
-            //player.inventory.add_item(Item::Meat);
-            //player.inventory.add_item(Item::Hourglass);
-            //player.inventory.add_item(Item::Potion);
-            player
-                .inventory
-                .display(&player, &texture_map, scale_params.clone());
-            Controller::inventory(&mut player);
+        if (player.in_shop() || player.in_inventory()) && game_state == GameState::Active {
+            if player.menu.is_none() {
+                let kind = if player.in_shop() {
+                    MenuType::Shop
+                } else {
+                    MenuType::Inventory
+                };
+
+                player.menu = Some(Menu::open(kind));
+            }
+
+            let items = if player.in_shop() {
+                Item::item_and_price()
+            } else {
+                player.inventory.storage_to_pairs()
+            };
+            let max_distance = if player.in_shop() {
+                Item::max_distance()
+            } else {
+                player.inventory.max_space_distance()
+            };
+
+            if let Some(mut menu) = player.menu.take() {
+                let kind = menu.kind();
+                let action = menu.display(
+                    &player,
+                    &items,
+                    &texture_map,
+                    max_distance,
+                    scale_params.clone(),
+                );
+                player.menu = Some(menu);
+
+                match action {
+                    MenuAction::Close => {
+                        player.menu = None;
+                        player.update_status(PlayerStatus::Roam);
+                        if *castle.get_ref_object(player.encounter.coordinate).unwrap()
+                            == Tile::Shop
+                        {
+                            player.encounter.coordinate = player.current_coordinate;
+                        }
+                    }
+                    MenuAction::Confirm(item, quantity) => match kind {
+                        MenuType::Shop => player.buy(item, quantity),
+                        MenuType::Inventory => player.use_item(item, quantity),
+                    },
+                    MenuAction::None => {}
+                }
+            }
         } else {
             Controller::roam(&castle, &mut player, &mut zombie, &dt, &mut game_state);
         }

@@ -1,3 +1,5 @@
+pub const TILE_SIZE: f32 = 32.0;
+
 pub mod prelude {
     use macroquad::input::KeyCode;
     use rand::prelude::*;

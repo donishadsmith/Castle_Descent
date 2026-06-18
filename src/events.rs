@@ -147,13 +147,17 @@ impl EntityStatus for Genie {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Monster {
     pub hp: i32,
+    pub money: i32,
+    pub attack_power: (i32, i32),
     pub status: EventStatus,
 }
 
 impl Monster {
-    pub fn spawn(hp: i32) -> Self {
+    pub fn spawn(hp: i32, money: i32, attack_power: (i32, i32)) -> Self {
         Self {
             hp,
+            money,
+            attack_power,
             status: EventStatus::Uninitiated,
         }
     }

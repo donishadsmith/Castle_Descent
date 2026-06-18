@@ -1,11 +1,13 @@
+use std::collections::{HashMap, hash_map::Entry::Vacant};
+
 use macroquad::prelude::*;
-use std::collections::HashMap;
 
 use crate::{
     castle::{Castle, Tile},
     controller::Controller,
     events::EventID,
-    merchant::Item,
+    item::Item,
+    menu::{Menu, MenuType},
     utils::prelude::*,
     zombie::Zombie,
 };
@@ -53,6 +55,14 @@ impl Inventory {
         }
     }
 
+    pub fn count(&self, item: Item) -> i32 {
+        *self.storage.get(&item).unwrap_or(&0)
+    }
+
+    pub fn storage_to_pairs(&self) -> Vec<(Item, i32)> {
+        self.storage.iter().map(|(item, n)| (*item, *n)).collect()
+    }
+
     fn delete_empty(&mut self) {
         self.storage.retain(|_, value| *value > 0);
     }
@@ -65,60 +75,32 @@ impl Inventory {
         self.delete_empty();
     }
 
-    pub fn add_item(&mut self, item: Item) {
+    pub fn add_item(&mut self, item: Item, quantity: i32) {
+        if quantity == 0 {
+            return;
+        }
+
+        /*
+        warning: usage of `contains_key` followed by `insert` on a `HashMap`
         if !self.storage.contains_key(&item) {
-            self.storage.insert(item, 1);
+            self.storage.insert(item, quantity);
         } else {
             if let Some(n) = self.storage.get_mut(&item) {
-                *n += 1;
+                *n += quantity;
+            }*/
+
+        // clippy recommendation
+        if let Vacant(e) = self.storage.entry(item) {
+            e.insert(quantity);
+        } else {
+            if let Some(n) = self.storage.get_mut(&item) {
+                *n += quantity;
             }
         }
     }
 
     pub fn max_space_distance(&self) -> f32 {
         -60.0 * (self.storage.len() as f32)
-    }
-
-    pub fn display(
-        &self,
-        player: &Player,
-        texture_map: &HashMap<&str, Texture2D>,
-        scale_params: DrawTextureParams,
-    ) {
-        let screen_x = screen_width() / 2.0;
-        let screen_y = screen_height() / 2.0;
-
-        let mut increment_y = self.max_space_distance();
-        for item in self.storage.keys() {
-            draw_texture_ex(
-                texture_map.get(item.identity()).unwrap(),
-                screen_x,
-                screen_y + increment_y,
-                WHITE,
-                scale_params.clone(),
-            );
-
-            increment_y += 60.0;
-        }
-
-        draw_text(
-            format!(
-                "HP: {} | Mana: {} | Money: {}",
-                player.hp, player.mana, player.money
-            ),
-            screen_x * 0.8,
-            screen_y * 1.1,
-            30.0,
-            WHITE,
-        );
-
-        draw_text(
-            "Navigate (Up/Down arrows) | Exit (Esc) | Select (Enter)".to_string(),
-            screen_x * 0.77,
-            screen_y * 1.2,
-            20.0,
-            WHITE,
-        );
     }
 }
 
@@ -148,24 +130,15 @@ impl Effects {
     }
 
     pub fn in_effect(&self, item: &Item) -> bool {
-        self.active.contains(&item)
+        self.active.contains(item)
     }
 
     pub fn add(&mut self, item: Item) {
-        //if !matches!(item.identity(), "hourglass" | "crystal_ball") {
-        //    return;
-        //}
-
-        //if !self.in_effect(&item) {
-        //    self.active.push(item);
-        //}
-
-        // Perhaps stacking effects is better
         self.active.push(item);
     }
 
     pub fn any_active(&self) -> bool {
-        self.active.len() > 0
+        !self.active.is_empty()
     }
 
     pub fn count(&self, item: Item) -> usize {
@@ -180,6 +153,7 @@ pub struct Player {
     pub attack_power: (i32, i32),
     pub current_coordinate: Coordinate,
     pub inventory: Inventory,
+    pub menu: Option<Menu>,
     pub status: PlayerStatus,
     pub accumulator: f32,
     pub encounter: Encounter,
@@ -200,6 +174,7 @@ impl Player {
             attack_power: (1, 5),
             current_coordinate,
             inventory: Inventory::new(),
+            menu: None,
             status: PlayerStatus::Roam,
             accumulator: 0.0,
             encounter,
@@ -317,6 +292,43 @@ impl Player {
     pub fn caught(&mut self, zombie: &Zombie) {
         if self.current_coordinate == zombie.current_coordinate {
             self.update_status(PlayerStatus::Lose)
+        }
+    }
+
+    pub fn buy(&mut self, item: Item, quantity: i32) {
+        self.inventory.add_item(item, quantity);
+        self.money = (self.money - item.cost() * quantity).max(0);
+    }
+
+    pub fn item_limit(&self, item: Item, menu_type: &MenuType) -> i32 {
+        match menu_type {
+            // Both are i32; gives truncated integer
+            MenuType::Shop => self.money / item.cost(),
+            MenuType::Inventory => {
+                if matches!(item, Item::Meat | Item::Potion) {
+                    self.compute_stat_limit(item)
+                } else {
+                    self.inventory.count(item)
+                }
+            }
+        }
+    }
+
+    fn compute_stat_limit(&self, item: Item) -> i32 {
+        let restore_points = 20.0;
+        // Apparantly div_ceil is an library feature?
+        let cap_amount = |x: i32| ((100.0 - x as f32) / restore_points as f32).ceil();
+        match item {
+            Item::Meat => cap_amount(self.hp) as i32,
+            _ => cap_amount(self.mana) as i32,
+        }
+    }
+
+    pub fn use_item(&mut self, item: Item, quantity: i32) {
+        let available = self.inventory.count(item).min(quantity);
+        for _ in 0..available {
+            self.inventory.decrement_item(item);
+            self.effects.add(item);
         }
     }
 }
