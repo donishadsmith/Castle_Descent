@@ -30,7 +30,8 @@ Money earned from battles can be used to purchase items from the merchant shop a
 #### Special Encounters
 While some doors may contain monsters and the exit to the next floor, others may contain:
 
-- 🧞 Genies that boost your attack or increase HP.
-- 🧚 Fairies that restore your HP.
-
+- Genies that boost your attack or increase HP.
 <img src="images/genie.png">
+
+- Fairies that restore your HP.
+<img src="images/fairy.png">
