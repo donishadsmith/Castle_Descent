@@ -8,9 +8,9 @@ use crate::{
 };
 
 const PLAYER_DISPLACEMENT: f32 = 0.10;
-//const ZOMBIE_DISPLACEMENT: f32 = 0.90;
+const ZOMBIE_DISPLACEMENT: f32 = 0.90;
 
-const ZOMBIE_DISPLACEMENT: f32 = 10e37;
+//const ZOMBIE_DISPLACEMENT: f32 = 10e37;
 
 fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
     if matches!(

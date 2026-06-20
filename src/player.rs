@@ -5,7 +5,7 @@ use macroquad::prelude::*;
 use crate::{
     castle::{Castle, Tile},
     controller::Controller,
-    events::EventID,
+    events::{EventID, EventLog},
     item::Item,
     math_as,
     menu::{EventMenu, ItemMenu, MenuType},
@@ -169,6 +169,8 @@ pub struct Player {
     pub accumulator: f32,
     pub encounter: Encounter,
     pub effects: Effects,
+    pub turn: Option<bool>,
+    pub event_log: EventLog,
 }
 
 impl Player {
@@ -190,6 +192,8 @@ impl Player {
             accumulator: 0.0,
             encounter,
             effects: Effects::new(),
+            turn: None,
+            event_log: EventLog::start(),
         }
     }
 
@@ -263,6 +267,12 @@ impl Player {
                 self.hp
             };
         }
+    }
+
+    pub fn clip_stats(&mut self) {
+        self.hp = self.hp.max(0);
+        self.hp = self.hp.min(self.hp_limit);
+        self.money = self.money.max(0);
     }
 
     pub fn in_shop(&self) -> bool {

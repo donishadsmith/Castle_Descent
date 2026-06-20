@@ -1,12 +1,46 @@
-use macroquad::prelude::*;
-use strum::Display;
-
 use crate::{
-    controller::Controller,
+    math_as,
     menu::EventMenuAction,
-    player::{ActiveMenu, Player, PlayerStatus},
+    player::{Player, PlayerStatus},
     utils::prelude::*,
 };
+use macroquad::texture::get_screen_data;
+use rand::prelude::*;
+use strum::Display;
+
+#[derive(Debug, PartialEq)]
+pub struct EventLog {
+    pub message: Option<String>,
+    pub remaining: f32,
+}
+
+impl EventLog {
+    pub fn start() -> Self {
+        Self {
+            message: None,
+            remaining: 1.0,
+        }
+    }
+
+    pub fn encounter_message(&self, identity: &'static str, status: Option<EventStatus>) -> String {
+        let message = if status == Some(EventStatus::Uninitiated) {
+            format!("You encountered a {}!", identity)
+        } else {
+            format!("You re-encountered a {}!", identity)
+        };
+
+        message
+    }
+
+    pub fn update(&mut self, message: String) {
+        self.message = Some(message)
+    }
+
+    pub fn reset(&mut self) {
+        self.message = None;
+        self.remaining = 2.0;
+    }
+}
 
 pub trait PlayableEvent {
     fn options(&self) -> &[&'static str];
@@ -14,6 +48,13 @@ pub trait PlayableEvent {
     fn count(&self) -> usize {
         self.options().len()
     }
+}
+
+fn coin_flip() -> &'static str {
+    let mut rng = rand::rng();
+    let arr = ["Monster", "Player"];
+
+    arr.choose(&mut rng).unwrap()
 }
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
@@ -37,7 +78,7 @@ impl EventID {
     }
 
     pub fn replace_if_complete(&mut self) {
-        if self.status() == Some(EventStatus::Complete) {
+        if self.status() == Some(EventStatus::Complete) && self.outcome().is_none() {
             *self = EventID::Empty;
         }
     }
@@ -67,42 +108,76 @@ impl EventID {
         }
     }
 
-    pub fn identity(&self) -> &str {
+    pub fn identity(&self) -> &'static str {
         match self {
-            EventID::MonsterEvent(_) => "monster",
-            EventID::GenieEvent(_) => "genie",
-            EventID::FairyEvent(_) => "fairy",
-            _ => "other",
+            EventID::MonsterEvent(_) => "Monster",
+            EventID::GenieEvent(_) => "Genie",
+            EventID::FairyEvent(_) => "Fairy",
+            _ => "Other",
         }
     }
 
     pub fn resolve(&mut self, player: &mut Player, action: EventMenuAction) {
         match self {
             EventID::MonsterEvent(monster) => {
+                match monster.turn {
+                    Some(_) => {}
+                    None => {
+                        let who = coin_flip();
+                        match who {
+                            "Monster" => {
+                                monster.turn = Some(true);
+                                player.turn = Some(false);
+                            }
+                            _ => {
+                                player.turn = Some(true);
+                                monster.turn = Some(false);
+                            }
+                        }
+                    }
+                }
+
                 if matches!(monster.status, EventStatus::Uninitiated) {
                     monster.update_status(EventStatus::Initiated);
                 }
+
+                monster.penalty(player, action);
             }
             EventID::FairyEvent(fairy) => {
                 if matches!(fairy.status, EventStatus::Uninitiated) {
                     fairy.update_status(EventStatus::Initiated);
                 }
-                if matches!(action, EventMenuAction::Select("Heal")) {
-                    player.hp = 100;
-                    fairy.update_status(EventStatus::Complete);
-                }
+
+                fairy.restore_hp(player, action);
             }
-            EventID::GenieEvent(genie) => {}
+            EventID::GenieEvent(genie) => {
+                if matches!(genie.status, EventStatus::Uninitiated) {
+                    genie.update_status(EventStatus::Initiated);
+                }
+
+                genie.increase_stat(player, action);
+            }
             _ => {}
         }
 
-        if matches!(self.status(), Some(EventStatus::Complete))
-            || matches!(action, EventMenuAction::Select("Leave"))
+        if (matches!(self.status(), Some(EventStatus::Complete))
+            || matches!(action, EventMenuAction::Select("Leave")))
+            && self.outcome().is_none()
         {
             player.update_status(PlayerStatus::Roam);
             player.encounter.coordinate = player.current_coordinate;
+            player.event_log.reset();
         } else {
             player.update_status(PlayerStatus::Event);
+        }
+    }
+
+    pub fn outcome(&self) -> Option<bool> {
+        match self {
+            EventID::MonsterEvent(monster) => monster.outcome,
+            EventID::FairyEvent(fairy) => fairy.outcome,
+            EventID::GenieEvent(genie) => genie.outcome,
+            _ => None,
         }
     }
 }
@@ -119,22 +194,29 @@ impl StatusType for EventStatus {}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Fairy {
     pub status: EventStatus,
-    pub encounter_text: &'static str,
     pub options: [&'static str; 2],
+    pub outcome: Option<bool>,
 }
 
 impl Fairy {
     pub fn spawn() -> Self {
         Self {
             status: EventStatus::Uninitiated,
-            encounter_text: "You encountered a fairy!",
-            options: ["Heal (Full Health)", "Leave"],
+            options: ["Restore Health", "Leave"],
+            outcome: None,
         }
     }
 
-    fn restore_hp(player: &mut Player, action: EventMenuAction) {
-        if action == EventMenuAction::Select("Heal") {
-            player.hp = 100;
+    fn restore_hp(&mut self, player: &mut Player, action: EventMenuAction) {
+        if action == EventMenuAction::Select("Restore Health") {
+            player.hp = player.hp_limit;
+            player.event_log.message = Some(String::from("Full health restored!"));
+            self.outcome = Some(true);
+            self.update_status(EventStatus::Complete);
+        }
+
+        if !self.outcome.is_none() && player.event_log.remaining <= 0.0 {
+            self.outcome = None;
         }
     }
 }
@@ -158,16 +240,54 @@ impl PlayableEvent for Fairy {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Genie {
     pub status: EventStatus,
-    pub encounter_text: &'static str,
     pub options: [&'static str; 3],
+    pub outcome: Option<bool>,
 }
 
 impl Genie {
     pub fn spawn() -> Self {
         Self {
             status: EventStatus::Uninitiated,
-            encounter_text: "You encountered a Genie!",
             options: ["Increase HP", "Increase Attack", "Leave"],
+            outcome: None,
+        }
+    }
+
+    pub fn increase_stat(&mut self, player: &mut Player, action: EventMenuAction) {
+        match action {
+            EventMenuAction::Select(_) => {
+                self.outcome = Some(true);
+
+                let increase_value = choose_random_range(1..3) * (player.current_coordinate.z + 1);
+
+                if action == EventMenuAction::Select("Increase HP") {
+                    let hp_percentage = math_as!(player.hp, player.hp_limit, f32, "div");
+                    player.hp_limit += increase_value;
+                    player.hp = math_as!(player.hp_limit, hp_percentage, f32, "prod") as i32;
+
+                    player.event_log.message =
+                        Some(format!("HP increased by {} points.", increase_value));
+                }
+
+                if action == EventMenuAction::Select("Increase Attack") {
+                    player.attack_power.0 += increase_value;
+                    player.attack_power.1 += increase_value;
+
+                    player.event_log.message = Some(format!(
+                        "Attack range increased by {} points.",
+                        increase_value
+                    ));
+                }
+
+                self.update_status(EventStatus::Complete);
+            }
+            _ => (),
+        }
+
+        if !self.outcome.is_none() && player.event_log.remaining <= 0.0 {
+            let screen = get_screen_data();
+            screen.export_png("genie.png");
+            self.outcome = None;
         }
     }
 }
@@ -194,8 +314,9 @@ pub struct Monster {
     pub money: i32,
     pub attack_power: (i32, i32),
     pub status: EventStatus,
-    pub encounter_text: &'static str,
     pub options: [&'static str; 2],
+    pub turn: Option<bool>,
+    pub outcome: Option<bool>,
 }
 
 impl Monster {
@@ -205,8 +326,33 @@ impl Monster {
             money,
             attack_power,
             status: EventStatus::Uninitiated,
-            encounter_text: "You encountered a Monster!",
             options: ["Attack", "Leave"],
+            turn: None,
+            outcome: None,
+        }
+    }
+
+    fn penalty(&mut self, player: &mut Player, action: EventMenuAction) {
+        if action == EventMenuAction::Select("Leave") {
+            match self.outcome {
+                Some(_) => {
+                    if player.event_log.remaining <= 0.0 {
+                        self.outcome = None;
+                    }
+                }
+                None => {
+                    self.outcome = Some(true);
+
+                    let penalty = self.hp / 4;
+                    player.hp -= penalty;
+                    player.money -= penalty;
+                    self.turn = None;
+
+                    player.event_log.message = Some(format!("-{} to HP and Money.", penalty));
+                    //let screen = get_screen_data();
+                    //screen.export_png("monster.png");
+                }
+            }
         }
     }
 }

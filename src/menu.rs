@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use ::macroquad::prelude::*;
+use macroquad::prelude::*;
+use strum::Display;
 
 use crate::{
     controller::Controller,
@@ -103,8 +104,8 @@ impl ItemMenu {
         scale_params: DrawTextureParams,
     ) -> ItemMenuAction {
         let key = Controller::get_press();
-
         let mut action = ItemMenuAction::None;
+
         self.mode = match (self.mode, key) {
             (MenuMode::Browse, Some(KeyCode::Enter)) => MenuMode::Quantity { amount: 0 },
             (MenuMode::Browse, Some(KeyCode::Backspace)) => {
@@ -141,6 +142,16 @@ impl ItemMenu {
         }
 
         self.draw(player, items, texture_map, max_distance, scale_params);
+
+        /*
+        if self.kind == MenuType::Inventory {
+            let screen = get_screen_data();
+            screen.export_png("inventory.png");
+        } 
+        if self.kind == MenuType::Shop {
+            let screen = get_screen_data();
+            screen.export_png("merchant.png");
+        }*/
 
         action
     }
@@ -271,7 +282,7 @@ impl ItemMenu {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Display)]
 pub enum EventMenuAction {
     None,
     Browse,
@@ -306,7 +317,13 @@ impl EventMenu {
                     action = EventMenuAction::Select(text);
                 }
             }
-            _ => self.cursor.scroll(key, entity.count(), true),
+            _ => match entity.outcome() {
+                Some(_) => {
+                    // Use to keep triggering the if match block in main
+                    action = EventMenuAction::Select("Leave");
+                }
+                None => self.cursor.scroll(key, entity.count(), true),
+            },
         }
 
         self.draw(player, entity, offset);
@@ -314,56 +331,59 @@ impl EventMenu {
         action
     }
 
-    fn draw(&self, player: &Player, entity: &EventID, offset: Offset) {
+    fn draw(&self, player: &Player, entity: &EventID, mut offset: Offset) {
         let screen_y = screen_height();
+
+        offset.x *= 1.25;
+
+        let log_message = match player.event_log.message.clone() {
+            Some(message) => message,
+            None => player
+                .event_log
+                .encounter_message(entity.identity(), entity.status()),
+        };
+
+        draw_text(log_message, offset.x + 30.0, screen_y * 0.86, 20.0, WHITE);
 
         draw_text(
             self.stats_text(player, entity),
             offset.x + 30.0,
-            screen_y * 0.78,
+            screen_y * 0.88,
             20.0,
             WHITE,
         );
 
         let width = match entity.identity() {
-            "genie" => 500.0,
-            "fairy" => 400.0,
+            "Genie" => 500.0,
+            "Fairy" => 400.0,
             _ => 300.0,
         };
 
         let adjust_x = match entity.identity() {
-            "genie" => -60.0,
-            "fairy" => -40.0,
+            "Genie" => -60.0,
+            "Fairy" => -40.0,
             _ => 20.0,
         };
 
         draw_rectangle_lines(
             offset.x + adjust_x,
-            screen_height() * 0.80,
+            screen_height() * 0.90,
             width,
             70.0,
             2.0,
             WHITE,
         );
 
+        let padding = 30.0;
         let mut text_shift_x = 0.0;
-        let add_n = match entity.identity() {
-            "monster" => 100.0,
-            _ => 150.0,
-        };
 
         for (index, option) in entity.options().iter().enumerate() {
-            draw_text(
-                option.to_string(),
-                offset.x + adjust_x + 60.0 + text_shift_x,
-                screen_y * 0.84,
-                20.0,
-                WHITE,
-            );
+            let anchor_x = offset.x + adjust_x + 70.0 + text_shift_x;
 
-            let anchor_x = offset.x + adjust_x + 60.0 + text_shift_x;
-            if index as isize == self.cursor.index {
-                let y = screen_y * 0.84 - 6.0;
+            draw_text(option, anchor_x, screen_y * 0.94, 20.0, WHITE);
+
+            if index == self.cursor.current(entity.options().len()) {
+                let y = screen_y * 0.94 - 6.0;
                 draw_triangle(
                     vec2(anchor_x - 8.0, y),
                     vec2(anchor_x - 24.0, y - 8.0),
@@ -372,13 +392,18 @@ impl EventMenu {
                 );
             }
 
-            text_shift_x += add_n;
+            let dims = measure_text(option, None, 20, 1.0);
+            text_shift_x += dims.width + padding;
         }
     }
 
     fn stats_text(&self, player: &Player, entity: &EventID) -> String {
         match entity.identity() {
-            "monster" => format!("Monster HP: {} | Player HP: {}", entity.hp(), player.hp),
+            "Monster" => format!("Monster HP: {} | Player HP: {}", entity.hp(), player.hp),
+            "Genie" => format!(
+                "Player HP: {} | Attack Range: Min={}, Max={}",
+                player.hp, player.attack_power.0, player.attack_power.1
+            ),
             _ => format!("Player HP: {}", player.hp),
         }
     }

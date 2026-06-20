@@ -1,13 +1,13 @@
 /*
 TODO:
-- Add logic for Playable events (Monster, Fairy, Genie), includes the menu for each (final major feature).
-- Npte, leaving monster without definiting drains hp and money.
+- Complete monster turn-based combat logic.
+- Also see if can fix rare glitch where player asset dissapears on a tile then reappers on the adjacent tile.
 */
 
 // PNG assets from https://emoji.aranja.com/
 
-use ::std::collections::HashMap;
 use macroquad::prelude::*;
+use std::collections::HashMap;
 
 use castle_descent::{
     castle::{Castle, Tile},
@@ -149,10 +149,13 @@ fn render_castle(
     draw_text(
         format!("Floor {} of {}", castle.current_floor + 1, castle.floors),
         screen_width() / 2.0 * 0.92,
-        screen_height() * 0.90,
+        screen_height() * 0.95,
         20.0,
         WHITE,
     );
+
+    //let screen = get_screen_data();
+    //screen.export_png("castle.png");
 }
 
 fn activate_event(
@@ -393,6 +396,15 @@ async fn main() {
             continue;
         }
 
+        activate_event(
+            &mut castle,
+            &mut player,
+            &mut zombie,
+            &texture_map,
+            &scale_params,
+            &mut transition,
+        );
+
         player.open_inventory();
         if player.effects.any_active() {
             zombie.freeze(&mut player, &game_state, dt);
@@ -473,15 +485,27 @@ async fn main() {
                         } else {
                             EventMenuAction::None
                         };
+
                         player.menu = Some(ActiveMenu::Event(event_menu));
 
                         if let Some(Tile::Door(event)) =
                             castle.get_mutable_object(player.encounter.coordinate)
                         {
                             event.resolve(&mut player, action);
+                            event.replace_if_complete();
                         }
+
                         if matches!(action, EventMenuAction::Select("Leave")) {
+                            if player.event_log.remaining >= 0.0 {
+                                player.event_log.remaining -= dt;
+
+                                next_frame().await;
+                                continue;
+                            }
+
                             player.menu = None;
+                            player.turn = None;
+                            player.event_log.reset();
                         }
                     }
                     _ => (),
@@ -497,15 +521,6 @@ async fn main() {
             player.caught(&zombie);
             game_state = check_game_status(&player, game_state);
         }
-
-        activate_event(
-            &mut castle,
-            &mut player,
-            &mut zombie,
-            &texture_map,
-            &scale_params,
-            &mut transition,
-        );
 
         if matches!(game_state, GameState::Paused) {
             draw_transparant_screen(
