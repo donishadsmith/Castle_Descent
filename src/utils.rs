@@ -11,6 +11,7 @@ pub mod prelude {
 
     #[derive(PartialEq, Eq, Debug)]
     pub enum GameState {
+        Start,
         Win,
         Lose,
         Paused,
@@ -97,6 +98,24 @@ pub mod prelude {
             KeyCode::Down => Coordinate::new(0, 1, 0),
             KeyCode::Up => Coordinate::new(0, -1, 0),
             _ => Coordinate::new(0, 0, 0),
+        }
+    }
+}
+
+#[derive(PartialEq)]
+pub enum AttackType {
+    Normal,
+    Critical,
+}
+
+pub trait Attack {
+    fn power(&self) -> i32;
+
+    fn damage_roll(&self) -> (AttackType, i32) {
+        let number = prelude::choose_random_range(0..10);
+        match number {
+            0..=8 => (AttackType::Normal, self.power()),
+            _ => (AttackType::Critical, self.power() * 2),
         }
     }
 }

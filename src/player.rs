@@ -1,6 +1,7 @@
 use std::collections::{HashMap, hash_map::Entry::Vacant};
 
 use macroquad::prelude::*;
+use strum::Display;
 
 use crate::{
     castle::{Castle, Tile},
@@ -9,7 +10,7 @@ use crate::{
     item::Item,
     math_as,
     menu::{EventMenu, ItemMenu, MenuType},
-    utils::prelude::*,
+    utils::{Attack, prelude::*},
     zombie::Zombie,
 };
 
@@ -18,7 +19,7 @@ pub enum ActiveMenu {
     Event(EventMenu),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Display)]
 pub enum PlayerStatus {
     Roam,
     Win,
@@ -30,11 +31,6 @@ pub enum PlayerStatus {
 }
 
 impl StatusType for PlayerStatus {}
-
-enum AttackType {
-    Normal,
-    Critical,
-}
 
 pub struct Encounter {
     pub coordinate: Coordinate,
@@ -91,16 +87,6 @@ impl Inventory {
             return;
         }
 
-        /*
-        warning: usage of `contains_key` followed by `insert` on a `HashMap`
-        if !self.storage.contains_key(&item) {
-            self.storage.insert(item, quantity);
-        } else {
-            if let Some(n) = self.storage.get_mut(&item) {
-                *n += quantity;
-            }*/
-
-        // clippy recommendation
         if let Vacant(e) = self.storage.entry(item) {
             e.insert(quantity);
         } else {
@@ -112,6 +98,14 @@ impl Inventory {
 
     pub fn max_space_distance(&self) -> f32 {
         -60.0 * (self.storage.len() as f32)
+    }
+
+    pub fn remove(&mut self, item: &Item) {
+        self.storage.retain(|key, _| key != item);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.storage.is_empty()
     }
 }
 
@@ -170,6 +164,7 @@ pub struct Player {
     pub encounter: Encounter,
     pub effects: Effects,
     pub turn: Option<bool>,
+    pub cooldown: f32,
     pub event_log: EventLog,
 }
 
@@ -193,6 +188,7 @@ impl Player {
             encounter,
             effects: Effects::new(),
             turn: None,
+            cooldown: 1.0,
             event_log: EventLog::start(),
         }
     }
@@ -248,24 +244,10 @@ impl Player {
     }
 
     pub fn replenish_stats(&mut self) {
-        // Can technically select more than needed since stats cap
-        // at 100, deal with that later
         if self.effects.in_effect(&Item::Meat) {
-            for _ in 0..self.effects.count(Item::Meat) {
-                while self.hp < 100 {
-                    self.hp += 20
-                }
-
-                if self.hp > 100 {
-                    break;
-                }
-            }
-
-            if self.hp > 100 {
-                100
-            } else {
-                self.hp
-            };
+            self.hp *= self.effects.count(Item::Meat) as i32;
+            self.inventory.remove(&Item::Meat);
+            self.clip_stats();
         }
     }
 
@@ -331,6 +313,10 @@ impl Player {
             self.effects.add(item);
         }
     }
+
+    pub fn reset_cooldown(&mut self) {
+        self.cooldown = 1.0;
+    }
 }
 
 impl Entity for Player {}
@@ -339,5 +325,11 @@ impl EntityStatus for Player {
     type Status = PlayerStatus;
     fn current_status(&mut self) -> &mut PlayerStatus {
         &mut self.status
+    }
+}
+
+impl Attack for Player {
+    fn power(&self) -> i32 {
+        choose_random_range(self.attack_power.0..self.attack_power.0 + 1)
     }
 }

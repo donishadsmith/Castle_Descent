@@ -2,9 +2,9 @@ use crate::{
     math_as,
     menu::EventMenuAction,
     player::{Player, PlayerStatus},
-    utils::prelude::*,
+    utils::{Attack, AttackType, prelude::*},
 };
-use macroquad::texture::get_screen_data;
+
 use rand::prelude::*;
 use strum::Display;
 
@@ -22,14 +22,8 @@ impl EventLog {
         }
     }
 
-    pub fn encounter_message(&self, identity: &'static str, status: Option<EventStatus>) -> String {
-        let message = if status == Some(EventStatus::Uninitiated) {
-            format!("You encountered a {}!", identity)
-        } else {
-            format!("You re-encountered a {}!", identity)
-        };
-
-        message
+    pub fn encounter_message(&self, identity: &'static str) -> String {
+        format!("You encountered a {}!", identity)
     }
 
     pub fn update(&mut self, message: String) {
@@ -38,7 +32,7 @@ impl EventLog {
 
     pub fn reset(&mut self) {
         self.message = None;
-        self.remaining = 2.0;
+        self.remaining = 1.0;
     }
 }
 
@@ -55,6 +49,64 @@ fn coin_flip() -> &'static str {
     let arr = ["Monster", "Player"];
 
     arr.choose(&mut rng).unwrap()
+}
+
+fn combat(monster: &mut Monster, player: &mut Player) {
+    if player.turn.is_none() || monster.outcome.is_some() {
+        return;
+    }
+
+    let mut lines: Vec<String> = Vec::new();
+
+    if player.turn == Some(true) {
+        lines.push(player_attacks(monster, player));
+
+        if monster.outcome.is_none() {
+            lines.push(monster_attacks(monster, player));
+        }
+    } else {
+        lines.push(monster_attacks(monster, player));
+
+        if player.hp > 0 {
+            lines.push(player_attacks(monster, player));
+        }
+    }
+
+    player.event_log.message = Some(lines.join(" | "));
+}
+
+fn player_attacks(monster: &mut Monster, player: &mut Player) -> String {
+    let (attack_type, damage) = player.damage_roll();
+    monster.hp -= damage;
+    monster.clip_hp();
+
+    if monster.hp <= 0 {
+        player.money += monster.money;
+        monster.outcome = Some(true);
+        monster.update_status(EventStatus::Complete);
+
+        return format!("Monster defeated! +{} money", monster.money);
+    }
+
+    combat_text("Player", attack_type, damage)
+}
+
+fn monster_attacks(monster: &Monster, player: &mut Player) -> String {
+    let (attack_type, damage) = monster.damage_roll();
+    player.hp -= damage;
+    player.clip_stats();
+
+    combat_text("Monster", attack_type, damage)
+}
+
+fn combat_text(identity: &'static str, attack_type: AttackType, damage: i32) -> String {
+    let critical = if attack_type == AttackType::Critical {
+        "Critical! "
+    } else {
+        ""
+    };
+
+    format!("{critical}{identity} dealt {damage} damage")
 }
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
@@ -120,25 +172,22 @@ impl EventID {
     pub fn resolve(&mut self, player: &mut Player, action: EventMenuAction) {
         match self {
             EventID::MonsterEvent(monster) => {
-                match monster.turn {
-                    Some(_) => {}
-                    None => {
-                        let who = coin_flip();
-                        match who {
-                            "Monster" => {
-                                monster.turn = Some(true);
-                                player.turn = Some(false);
-                            }
-                            _ => {
-                                player.turn = Some(true);
-                                monster.turn = Some(false);
-                            }
-                        }
+                if matches!(monster.status, EventStatus::Uninitiated) {
+                    monster.update_status(EventStatus::Initiated);
+                }
+
+                if player.turn.is_none()
+                    && monster.outcome.is_none()
+                    && action == EventMenuAction::Select("Attack")
+                {
+                    match coin_flip() {
+                        "Monster" => player.turn = Some(false),
+                        _ => player.turn = Some(true),
                     }
                 }
 
-                if matches!(monster.status, EventStatus::Uninitiated) {
-                    monster.update_status(EventStatus::Initiated);
+                if action == EventMenuAction::Select("Attack") {
+                    combat(monster, player);
                 }
 
                 monster.penalty(player, action);
@@ -180,6 +229,15 @@ impl EventID {
             _ => None,
         }
     }
+
+    pub fn clear_outcome(&mut self) {
+        match self {
+            EventID::MonsterEvent(monster) => monster.outcome = None,
+            EventID::FairyEvent(fairy) => fairy.outcome = None,
+            EventID::GenieEvent(genie) => genie.outcome = None,
+            _ => {}
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
@@ -213,10 +271,6 @@ impl Fairy {
             player.event_log.message = Some(String::from("Full health restored!"));
             self.outcome = Some(true);
             self.update_status(EventStatus::Complete);
-        }
-
-        if !self.outcome.is_none() && player.event_log.remaining <= 0.0 {
-            self.outcome = None;
         }
     }
 }
@@ -254,40 +308,31 @@ impl Genie {
     }
 
     pub fn increase_stat(&mut self, player: &mut Player, action: EventMenuAction) {
-        match action {
-            EventMenuAction::Select(_) => {
-                self.outcome = Some(true);
+        if let EventMenuAction::Select(_) = action {
+            self.outcome = Some(true);
 
-                let increase_value = choose_random_range(1..3) * (player.current_coordinate.z + 1);
+            let increase_value = choose_random_range(1..3) * (player.current_coordinate.z + 1);
 
-                if action == EventMenuAction::Select("Increase HP") {
-                    let hp_percentage = math_as!(player.hp, player.hp_limit, f32, "div");
-                    player.hp_limit += increase_value;
-                    player.hp = math_as!(player.hp_limit, hp_percentage, f32, "prod") as i32;
+            if action == EventMenuAction::Select("Increase HP") {
+                let hp_percentage = math_as!(player.hp, player.hp_limit, f32, "div");
+                player.hp_limit += increase_value;
+                player.hp = math_as!(player.hp_limit, hp_percentage, f32, "prod") as i32;
 
-                    player.event_log.message =
-                        Some(format!("HP increased by {} points.", increase_value));
-                }
-
-                if action == EventMenuAction::Select("Increase Attack") {
-                    player.attack_power.0 += increase_value;
-                    player.attack_power.1 += increase_value;
-
-                    player.event_log.message = Some(format!(
-                        "Attack range increased by {} points.",
-                        increase_value
-                    ));
-                }
-
-                self.update_status(EventStatus::Complete);
+                player.event_log.message =
+                    Some(format!("HP increased by {} points.", increase_value));
             }
-            _ => (),
-        }
 
-        if !self.outcome.is_none() && player.event_log.remaining <= 0.0 {
-            let screen = get_screen_data();
-            screen.export_png("genie.png");
-            self.outcome = None;
+            if action == EventMenuAction::Select("Increase Attack") {
+                player.attack_power.0 += increase_value;
+                player.attack_power.1 += increase_value;
+
+                player.event_log.message = Some(format!(
+                    "Attack range increased by {} points.",
+                    increase_value
+                ));
+            }
+
+            self.update_status(EventStatus::Complete);
         }
     }
 }
@@ -315,7 +360,6 @@ pub struct Monster {
     pub attack_power: (i32, i32),
     pub status: EventStatus,
     pub options: [&'static str; 2],
-    pub turn: Option<bool>,
     pub outcome: Option<bool>,
 }
 
@@ -327,33 +371,24 @@ impl Monster {
             attack_power,
             status: EventStatus::Uninitiated,
             options: ["Attack", "Leave"],
-            turn: None,
             outcome: None,
         }
     }
 
     fn penalty(&mut self, player: &mut Player, action: EventMenuAction) {
-        if action == EventMenuAction::Select("Leave") {
-            match self.outcome {
-                Some(_) => {
-                    if player.event_log.remaining <= 0.0 {
-                        self.outcome = None;
-                    }
-                }
-                None => {
-                    self.outcome = Some(true);
+        if action == EventMenuAction::Select("Leave") && self.outcome.is_none() {
+            self.outcome = Some(true);
 
-                    let penalty = self.hp / 4;
-                    player.hp -= penalty;
-                    player.money -= penalty;
-                    self.turn = None;
-
-                    player.event_log.message = Some(format!("-{} to HP and Money.", penalty));
-                    //let screen = get_screen_data();
-                    //screen.export_png("monster.png");
-                }
-            }
+            let penalty = self.hp / 4;
+            player.hp -= penalty;
+            player.money -= penalty;
+            player.clip_stats();
+            player.event_log.message = Some(format!("-{} to HP and Money.", penalty));
         }
+    }
+
+    fn clip_hp(&mut self) {
+        self.hp = self.hp.max(0)
     }
 }
 
@@ -370,5 +405,11 @@ impl EntityStatus for Monster {
 impl PlayableEvent for Monster {
     fn options(&self) -> &[&'static str] {
         &self.options
+    }
+}
+
+impl Attack for Monster {
+    fn power(&self) -> i32 {
+        choose_random_range(self.attack_power.0..self.attack_power.1 + 1)
     }
 }

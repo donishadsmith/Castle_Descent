@@ -10,7 +10,7 @@ use crate::{
     utils::prelude::*,
 };
 
-enum DistanceMetric {
+pub enum DistanceMetric {
     Euclidean,
     Chebyshev,
 }
@@ -42,7 +42,8 @@ impl Zombie {
         }
     }
 
-    fn compute_distance(a: &Coordinate, b: &Coordinate, metric: DistanceMetric) -> i32 {
+    /// Assuming z is the same
+    pub fn compute_distance(a: &Coordinate, b: &Coordinate, metric: DistanceMetric) -> i32 {
         match metric {
             DistanceMetric::Euclidean => {
                 let dx = b.x - a.x;
@@ -212,5 +213,24 @@ impl EntityStatus for Zombie {
 
     fn current_status(&mut self) -> &mut ZombieStatus {
         &mut self.status
+    }
+}
+
+// Eventually add more tests plus tests for castle and player
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_distance() {
+
+        let a = Coordinate::new(1, 2, 0);
+        let b = Coordinate::new(4, 6, 0);
+
+        let mut distance = Zombie::compute_distance(&a, &b, DistanceMetric::Euclidean);
+        assert_eq!(distance, 25);
+
+        distance = Zombie::compute_distance(&a, &b, DistanceMetric::Chebyshev);
+        assert_eq!(distance, 4);
     }
 }

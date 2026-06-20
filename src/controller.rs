@@ -24,6 +24,12 @@ fn player_keyboard(key_press: KeyCode, player: &mut Player, castle: &Castle) {
 pub struct Controller {}
 
 impl Controller {
+    pub fn start(game_state: &mut GameState) {
+        if Controller::get_key() == Some(KeyCode::Enter) {
+            *game_state = GameState::Active
+        }
+    }
+
     pub fn roam(
         castle: &Castle,
         player: &mut Player,

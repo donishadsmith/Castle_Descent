@@ -72,7 +72,7 @@ impl MenuCursor {
     }
 
     fn text_selected(&self, options: &[&'static str]) -> Option<&'static str> {
-        options.get(self.current(options.len())).map(|text| *text)
+        options.get(self.current(options.len())).copied()
     }
 }
 
@@ -106,8 +106,16 @@ impl ItemMenu {
         let key = Controller::get_press();
         let mut action = ItemMenuAction::None;
 
+        self.draw(player, items, texture_map, max_distance, scale_params);
+
         self.mode = match (self.mode, key) {
-            (MenuMode::Browse, Some(KeyCode::Enter)) => MenuMode::Quantity { amount: 0 },
+            (MenuMode::Browse, Some(KeyCode::Enter)) => {
+                if player.in_inventory() && player.inventory.is_empty() {
+                    MenuMode::Browse
+                } else {
+                    MenuMode::Quantity { amount: 0 }
+                }
+            }
             (MenuMode::Browse, Some(KeyCode::Backspace)) => {
                 action = ItemMenuAction::Close;
                 MenuMode::Browse
@@ -126,28 +134,23 @@ impl ItemMenu {
 
         match &mut self.mode {
             MenuMode::Browse => self.cursor.scroll(key, items.len(), false),
-            MenuMode::Quantity { amount } => match key {
-                Some(KeyCode::Left) => {
-                    let item = self.cursor.item_selected(items).unwrap();
-                    *amount -= 1;
-                    *amount = amount.rem_euclid(player.item_limit(item, &self.kind) + 1);
+            MenuMode::Quantity { amount } => {
+                if key == Some(KeyCode::Left) {
+                    *amount -= 1
+                } else if key == Some(KeyCode::Right) {
+                    *amount += 1
                 }
-                Some(KeyCode::Right) => {
-                    let item = self.cursor.item_selected(items).unwrap();
-                    *amount += 1;
-                    *amount = amount.rem_euclid(player.item_limit(item, &self.kind) + 1);
-                }
-                _ => {}
-            },
-        }
 
-        self.draw(player, items, texture_map, max_distance, scale_params);
+                let item = self.cursor.item_selected(items).unwrap();
+                *amount = amount.rem_euclid(player.item_limit(item, &self.kind) + 1)
+            }
+        }
 
         /*
         if self.kind == MenuType::Inventory {
             let screen = get_screen_data();
             screen.export_png("inventory.png");
-        } 
+        }
         if self.kind == MenuType::Shop {
             let screen = get_screen_data();
             screen.export_png("merchant.png");
@@ -207,7 +210,7 @@ impl ItemMenu {
                         WHITE,
                     );
 
-                    let dims = measure_text(&item.description(), None, 20, 1.0);
+                    let dims = measure_text(item.description(), None, 20, 1.0);
                     if let MenuMode::Quantity { amount } = self.mode {
                         self.draw_quantity(
                             description_start_x + dims.width + TILE_SIZE * 2.0,
@@ -317,13 +320,11 @@ impl EventMenu {
                     action = EventMenuAction::Select(text);
                 }
             }
-            _ => match entity.outcome() {
-                Some(_) => {
-                    // Use to keep triggering the if match block in main
-                    action = EventMenuAction::Select("Leave");
+            _ => {
+                if entity.outcome().is_none() {
+                    self.cursor.scroll(key, entity.count(), true);
                 }
-                None => self.cursor.scroll(key, entity.count(), true),
-            },
+            }
         }
 
         self.draw(player, entity, offset);
@@ -338,9 +339,7 @@ impl EventMenu {
 
         let log_message = match player.event_log.message.clone() {
             Some(message) => message,
-            None => player
-                .event_log
-                .encounter_message(entity.identity(), entity.status()),
+            None => player.event_log.encounter_message(entity.identity()),
         };
 
         draw_text(log_message, offset.x + 30.0, screen_y * 0.86, 20.0, WHITE);
