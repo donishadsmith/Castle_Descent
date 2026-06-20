@@ -64,6 +64,8 @@ impl Controller {
                     player.update_status(PlayerStatus::Hide);
                 }
             } else {
+                // https://gamedev.stackexchange.com/questions/187660/fixed-timestep-game-loop-why-interpolation
+                // no interp
                 player.accumulator += dt;
                 while player.accumulator >= PLAYER_DISPLACEMENT {
                     player_keyboard(key, player, castle);
