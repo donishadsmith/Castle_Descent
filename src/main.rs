@@ -1,13 +1,20 @@
 // PNG assets from https://emoji.aranja.com/
+mod castle;
+mod controller;
+mod events;
+mod item;
+mod menu;
+mod player;
+mod utils;
+mod zombie;
 
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
-use castle_descent::{
+use crate::{
     castle::{Castle, Tile},
     controller::Controller,
     events::EventID,
-    hashmap,
     item::Item,
     menu::{EventMenu, EventMenuAction, ItemMenu, ItemMenuAction, MenuType},
     player::{ActiveMenu, Player, PlayerStatus},
