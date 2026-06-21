@@ -46,9 +46,9 @@ pub mod prelude {
         }
     }
 
-    pub trait Entity {}
     pub trait StatusType {}
-    pub trait EntityStatus: Entity {
+
+    pub trait Entity {
         type Status: StatusType;
 
         fn current_status(&mut self) -> &mut Self::Status;

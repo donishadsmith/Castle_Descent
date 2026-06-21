@@ -319,14 +319,14 @@ impl Player {
     }
 }
 
-impl Entity for Player {}
-
-impl EntityStatus for Player {
+impl Entity for Player {
     type Status = PlayerStatus;
+
     fn current_status(&mut self) -> &mut PlayerStatus {
         &mut self.status
     }
 }
+
 
 impl Attack for Player {
     fn power(&self) -> i32 {

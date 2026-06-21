@@ -275,9 +275,7 @@ impl Fairy {
     }
 }
 
-impl Entity for Fairy {}
-
-impl EntityStatus for Fairy {
+impl Entity for Fairy {
     type Status = EventStatus;
 
     fn current_status(&mut self) -> &mut EventStatus {
@@ -337,15 +335,14 @@ impl Genie {
     }
 }
 
-impl Entity for Genie {}
-
-impl EntityStatus for Genie {
+impl Entity for Genie {
     type Status = EventStatus;
 
     fn current_status(&mut self) -> &mut EventStatus {
         &mut self.status
     }
 }
+
 
 impl PlayableEvent for Genie {
     fn options(&self) -> &[&'static str] {
@@ -392,9 +389,7 @@ impl Monster {
     }
 }
 
-impl Entity for Monster {}
-
-impl EntityStatus for Monster {
+impl Entity for Monster {
     type Status = EventStatus;
 
     fn current_status(&mut self) -> &mut EventStatus {

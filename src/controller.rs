@@ -3,7 +3,7 @@ use macroquad::input::{KeyCode, get_keys_down, get_keys_pressed};
 use crate::{
     castle::Castle,
     player::{Player, PlayerStatus},
-    utils::prelude::{EntityStatus, GameState},
+    utils::prelude::{Entity, GameState},
     zombie::{Zombie, ZombieStatus},
 };
 

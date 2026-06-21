@@ -206,15 +206,14 @@ impl Zombie {
     }
 }
 
-impl Entity for Zombie {}
-
-impl EntityStatus for Zombie {
+impl Entity for Zombie {
     type Status = ZombieStatus;
 
     fn current_status(&mut self) -> &mut ZombieStatus {
         &mut self.status
     }
 }
+
 
 // Eventually add more tests plus tests for castle and player
 #[cfg(test)]
