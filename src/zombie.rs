@@ -214,7 +214,6 @@ impl Entity for Zombie {
     }
 }
 
-
 // Eventually add more tests plus tests for castle and player
 #[cfg(test)]
 mod tests {
@@ -222,7 +221,6 @@ mod tests {
 
     #[test]
     fn compute_distance() {
-
         let a = Coordinate::new(1, 2, 0);
         let b = Coordinate::new(4, 6, 0);
 

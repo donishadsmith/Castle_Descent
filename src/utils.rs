@@ -150,15 +150,3 @@ macro_rules! hashmap {
         }
     ]
 }
-
-#[macro_export]
-macro_rules! math_as {
-    ($x:expr, $y:expr, $t:ty, $op:expr) => {
-        match $op {
-            "add" => $x as $t + $y as $t,
-            "sub" => $x as $t - $y as $t,
-            "prod" => $x as $t * $y as $t,
-            _ => $x as $t / $y as $t,
-        }
-    };
-}

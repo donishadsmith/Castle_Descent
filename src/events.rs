@@ -1,5 +1,4 @@
 use crate::{
-    math_as,
     menu::EventMenuAction,
     player::{Player, PlayerStatus},
     utils::{Attack, AttackType, prelude::*},
@@ -312,9 +311,9 @@ impl Genie {
             let increase_value = choose_random_range(1..3) * (player.current_coordinate.z + 1);
 
             if action == EventMenuAction::Select("Increase HP") {
-                let hp_percentage = math_as!(player.hp, player.hp_limit, f32, "div");
+                let hp_percentage = player.hp as f32 / player.hp_limit as f32;
                 player.hp_limit += increase_value;
-                player.hp = math_as!(player.hp_limit, hp_percentage, f32, "prod") as i32;
+                player.hp = (player.hp_limit as f32 * hp_percentage) as i32;
 
                 player.event_log.message =
                     Some(format!("HP increased by {} points.", increase_value));
@@ -342,7 +341,6 @@ impl Entity for Genie {
         &mut self.status
     }
 }
-
 
 impl PlayableEvent for Genie {
     fn options(&self) -> &[&'static str] {

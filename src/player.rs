@@ -8,7 +8,6 @@ use crate::{
     controller::Controller,
     events::{EventID, EventLog},
     item::Item,
-    math_as,
     menu::{EventMenu, ItemMenu, MenuType},
     utils::{Attack, prelude::*},
     zombie::Zombie,
@@ -289,15 +288,8 @@ impl Player {
             MenuType::Inventory => {
                 if item == Item::Meat {
                     let restore_points = 20.0;
-                    let compute_stat_limit = |x: i32| {
-                        math_as!(
-                            math_as!(self.hp_limit, x, f32, "sub"),
-                            restore_points,
-                            f32,
-                            "div"
-                        )
-                        .ceil()
-                    };
+                    let compute_stat_limit =
+                        |x: i32| ((self.hp_limit - x) as f32 / restore_points as f32).ceil();
                     compute_stat_limit(self.hp) as i32
                 } else {
                     self.inventory.count(item)
@@ -327,9 +319,8 @@ impl Entity for Player {
     }
 }
 
-
 impl Attack for Player {
     fn power(&self) -> i32 {
-        choose_random_range(self.attack_power.0..self.attack_power.0 + 1)
+        choose_random_range(self.attack_power.0..self.attack_power.1 + 1)
     }
 }
