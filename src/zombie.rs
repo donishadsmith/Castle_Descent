@@ -133,21 +133,13 @@ impl Zombie {
                 );
             }
 
-            self.current_coordinate = filtered_moves
+            self.current_coordinate = distance_hashmap
                 .into_iter()
-                .min_by_key(|c| {
-                    (
-                        Self::compute_distance(
-                            &player.current_coordinate,
-                            c,
-                            DistanceMetric::Euclidean,
-                        ),
-                        c.x,
-                        c.y,
-                    )
-                })
-                .unwrap();
+                .min_by_key(|(c, v)| (*v, c.x, c.y))
+                .unwrap()
+                .0;
         }
+            
     }
 
     pub fn wander(&mut self, castle: &Castle) {
