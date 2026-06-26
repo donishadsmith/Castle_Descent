@@ -139,7 +139,6 @@ impl Zombie {
                 .unwrap()
                 .0;
         }
-            
     }
 
     pub fn wander(&mut self, castle: &Castle) {

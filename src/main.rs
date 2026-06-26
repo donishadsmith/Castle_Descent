@@ -22,18 +22,516 @@ use crate::{
     zombie::{Zombie, ZombieStatus},
 };
 
+enum Flow {
+    Continue,
+    SkipFrame,
+}
+
 struct Transition {
     remaining: f32,
     first_text: String,
     second_text: String,
 }
 
-fn initialize() -> (Castle, Player, Zombie) {
-    let castle = Castle::generate();
-    let player = Player::spawn(&castle);
-    let zombie = Zombie::spawn(&castle, &player);
+struct Assets {
+    textures: HashMap<&'static str, Texture2D>,
+    scale: DrawTextureParams,
+}
 
-    (castle, player, zombie)
+impl Assets {
+    fn load() -> Self {
+        let textures: HashMap<&str, Texture2D> = hashmap!(
+            "door" ; Texture2D::from_file_with_format(include_bytes!("../assets/door.png"), None),
+            "merchant" ; Texture2D::from_file_with_format(include_bytes!("../assets/merchant.png"), None),
+            "monster" ; Texture2D::from_file_with_format(include_bytes!("../assets/monster.png"), None),
+            "fairy" ; Texture2D::from_file_with_format(include_bytes!("../assets/fairy.png"), None),
+            "genie" ; Texture2D::from_file_with_format(include_bytes!("../assets/genie.png"), None),
+            "player" ; Texture2D::from_file_with_format(include_bytes!("../assets/player.png"), None),
+            "zombie" ; Texture2D::from_file_with_format(include_bytes!("../assets/zombie.png"), None),
+            "exit" ; Texture2D::from_file_with_format(include_bytes!("../assets/exit.png"), None),
+            "crystal_ball" ; Texture2D::from_file_with_format(include_bytes!("../assets/crystal_ball.png"), None),
+            "meat" ; Texture2D::from_file_with_format(include_bytes!("../assets/meat.png"), None),
+            "hourglass" ; Texture2D::from_file_with_format(include_bytes!("../assets/hourglass.png"), None),
+            "x" ; Texture2D::from_file_with_format(include_bytes!("../assets/x.png"), None)
+        );
+
+        let scale = DrawTextureParams {
+            dest_size: Some(vec2(TILE_SIZE, TILE_SIZE)),
+            ..Default::default()
+        };
+
+        Self { textures, scale }
+    }
+
+    fn tex(&self, name: &str) -> &Texture2D {
+        self.textures.get(name).unwrap()
+    }
+}
+
+struct Game {
+    castle: Castle,
+    player: Player,
+    zombie: Zombie,
+    state: GameState,
+    transition: Option<Transition>,
+    assets: Assets,
+}
+
+impl Game {
+    fn new() -> Self {
+        let castle = Castle::generate();
+        let player = Player::spawn(&castle);
+        let zombie = Zombie::spawn(&castle, &player);
+
+        Self {
+            castle,
+            player,
+            zombie,
+            state: GameState::Start,
+            transition: None,
+            assets: Assets::load(),
+        }
+    }
+
+    async fn run(mut self) {
+        set_fullscreen(true);
+
+        loop {
+            clear_background(BLACK);
+
+            if self.state == GameState::Quit {
+                break;
+            }
+
+            if self.state == GameState::Start {
+                self.start_screen();
+                next_frame().await;
+                continue;
+            }
+
+            let dt = get_frame_time().min(0.25);
+
+            self.render_castle();
+            self.render_moving_objects();
+
+            if let Flow::SkipFrame = self.tick_transition(dt) {
+                next_frame().await;
+                continue;
+            }
+
+            self.activate_event();
+
+            if let Flow::SkipFrame = self.update(dt) {
+                next_frame().await;
+                continue;
+            }
+
+            self.resolve_frame();
+
+            if self.state == GameState::Paused {
+                draw_transparant_screen(
+                    "Game Paused",
+                    "Press escape to continue.",
+                    0.95,
+                    0.91,
+                    1.0,
+                    1.1,
+                );
+                self.zombie.update_status(ZombieStatus::Frozen);
+            }
+
+            if self.reset_if_over() {
+                clear_background(BLACK);
+            }
+
+            next_frame().await;
+        }
+    }
+
+    fn start_screen(&mut self) {
+        draw_transparant_screen(
+            "Castle Descent",
+            "Press 'enter' to start game.",
+            0.90,
+            0.85,
+            0.95,
+            1.05,
+        );
+
+        Controller::start(&mut self.state);
+        if let Some(key) = Controller::get_key() {
+            Controller::quit(&key, &mut self.state);
+        }
+    }
+
+    fn render_castle(&self) {
+        let offset = castle_offset(&self.castle);
+
+        if self.player.in_inventory()
+            || self.player.in_shop()
+            || self.player.encounter.is_playable_event(&self.castle)
+        {
+            return;
+        }
+
+        for (coordinate, tile) in &self.castle.layout {
+            if coordinate.z != self.castle.current_floor {
+                continue;
+            }
+
+            match tile {
+                Tile::Floor => {
+                    draw_rectangle(
+                        offset.x + coordinate.to_float(Component::X) * TILE_SIZE,
+                        offset.y + coordinate.to_float(Component::Y) * TILE_SIZE,
+                        TILE_SIZE,
+                        TILE_SIZE,
+                        BLACK,
+                    );
+                }
+                Tile::Shop => {
+                    draw_asset(
+                        self.assets.tex("merchant"),
+                        *coordinate,
+                        self.assets.scale.clone(),
+                        offset,
+                    );
+                }
+                Tile::Door(_) => {
+                    let door_type = if self.player.effects.reveal_exit()
+                        && matches!(
+                            self.castle.get_ref_object(*coordinate),
+                            Some(Tile::Door(EventID::Exit))
+                        ) {
+                        "exit"
+                    } else {
+                        "door"
+                    };
+
+                    draw_asset(
+                        self.assets.tex(door_type),
+                        *coordinate,
+                        self.assets.scale.clone(),
+                        offset,
+                    );
+                }
+            }
+        }
+
+        draw_text(
+            format!(
+                "Floor {} of {}",
+                self.castle.current_floor + 1,
+                self.castle.floors
+            ),
+            screen_width() / 2.0 * 0.92,
+            screen_height() * 0.95,
+            20.0,
+            WHITE,
+        );
+    }
+
+    fn render_moving_objects(&self) {
+        let offset = castle_offset(&self.castle);
+
+        if self.player.in_inventory() || self.player.in_shop() {
+            return;
+        }
+
+        if self.player.status != PlayerStatus::Hide {
+            draw_asset(
+                self.assets.tex("player"),
+                self.player.current_coordinate,
+                self.assets.scale.clone(),
+                offset,
+            );
+        }
+
+        if self.player.encounter.is_playable_event(&self.castle) {
+            return;
+        }
+
+        draw_asset(
+            self.assets.tex("zombie"),
+            self.zombie.current_coordinate,
+            self.assets.scale.clone(),
+            offset,
+        );
+
+        if self.player.effects.freeze_zombie() {
+            draw_asset(
+                self.assets.tex("x"),
+                self.zombie.current_coordinate,
+                self.assets.scale.clone(),
+                offset,
+            );
+        }
+    }
+
+    fn tick_transition(&mut self, dt: f32) -> Flow {
+        let Some(t) = &mut self.transition else {
+            return Flow::Continue;
+        };
+
+        t.remaining -= dt;
+        draw_transparant_screen(&t.first_text, &t.second_text, 0.93, 0.945, 0.95, 1.05);
+        let finished = t.remaining <= 0.0;
+
+        if finished {
+            self.transition = None;
+            Flow::Continue
+        } else {
+            Flow::SkipFrame
+        }
+    }
+
+    fn activate_event(&mut self) {
+        let offset = castle_offset(&self.castle);
+
+        if let Some(tile) = self
+            .castle
+            .get_mutable_object(self.player.encounter.coordinate)
+        {
+            match tile {
+                Tile::Door(EventID::MonsterEvent(_)) => {
+                    if self.player.status == PlayerStatus::Inventory {
+                        return;
+                    }
+                    if self.player.status != PlayerStatus::Event {
+                        self.player.update_status(PlayerStatus::Event);
+                    }
+                    draw_asset(
+                        self.assets.tex("monster"),
+                        self.player.encounter.coordinate,
+                        self.assets.scale.clone(),
+                        offset,
+                    );
+                }
+                Tile::Door(EventID::FairyEvent(_)) => {
+                    if self.player.status == PlayerStatus::Inventory {
+                        return;
+                    }
+                    if self.player.status != PlayerStatus::Event {
+                        self.player.update_status(PlayerStatus::Event);
+                    }
+                    draw_asset(
+                        self.assets.tex("fairy"),
+                        self.player.encounter.coordinate,
+                        self.assets.scale.clone(),
+                        offset,
+                    );
+                }
+                Tile::Door(EventID::GenieEvent(_)) => {
+                    if self.player.status == PlayerStatus::Inventory {
+                        return;
+                    }
+                    if self.player.status != PlayerStatus::Event {
+                        self.player.update_status(PlayerStatus::Event);
+                    }
+                    draw_asset(
+                        self.assets.tex("genie"),
+                        self.player.encounter.coordinate,
+                        self.assets.scale.clone(),
+                        offset,
+                    );
+                }
+                Tile::Shop => {
+                    if self.player.status != PlayerStatus::Shop {
+                        self.player.update_status(PlayerStatus::Shop);
+                    }
+                }
+                Tile::Door(EventID::Empty) => {
+                    if self.player.status != PlayerStatus::Hide {
+                        self.player.update_status(PlayerStatus::Hide);
+                    }
+                }
+                Tile::Door(EventID::Exit) => {
+                    if self.player.current_coordinate.z < self.castle.max_floors() {
+                        self.castle.increment_floor();
+                        self.player.current_coordinate = Player::select_initial_location(
+                            &self.castle,
+                            self.castle.current_floor,
+                        );
+                        self.player.encounter.coordinate = self.player.current_coordinate;
+                        self.player.effects.inactivate(Item::CrystalBall);
+
+                        self.zombie.current_coordinate = Zombie::select_initial_location(
+                            &self.castle,
+                            &self.player,
+                            self.castle.current_floor,
+                        );
+                        self.player.update_status(PlayerStatus::Roam);
+
+                        self.transition = Some(Transition {
+                            remaining: 2.0,
+                            first_text: "Found the exit.".to_string(),
+                            second_text: format!("Moving to floor: {}", self.castle.current_floor),
+                        });
+                    } else {
+                        self.player.update_status(PlayerStatus::Win);
+                    }
+                }
+                Tile::Floor => {
+                    if !self.player.in_inventory() {
+                        self.player.update_status(PlayerStatus::Roam);
+                    }
+                }
+            };
+        }
+    }
+
+    fn update(&mut self, dt: f32) -> Flow {
+        self.player.open_inventory();
+        if self.player.effects.any_active() {
+            self.zombie.freeze(&mut self.player, &self.state, dt);
+            self.player.replenish_stats();
+        }
+
+        if (self.player.in_shop() || self.player.in_inventory()) && self.state == GameState::Active
+        {
+            if self.player.menu.is_none() {
+                let kind = if self.player.in_shop() {
+                    MenuType::Shop
+                } else {
+                    MenuType::Inventory
+                };
+                self.player.menu = Some(ActiveMenu::Item(ItemMenu::open(kind)));
+            }
+
+            let items = if self.player.in_shop() {
+                Item::item_and_price()
+            } else {
+                self.player.inventory.storage_to_pairs()
+            };
+            let max_distance = if self.player.in_shop() {
+                Item::max_distance()
+            } else {
+                self.player.inventory.max_space_distance()
+            };
+
+            if let Some(menu) = self.player.menu.take()
+                && let ActiveMenu::Item(mut item_menu) = menu
+            {
+                let kind = item_menu.kind();
+                let action = item_menu.display(
+                    &self.player,
+                    &items,
+                    &self.assets.textures,
+                    max_distance,
+                    self.assets.scale.clone(),
+                );
+                self.player.menu = Some(ActiveMenu::Item(item_menu));
+
+                match action {
+                    ItemMenuAction::Close => {
+                        self.player.menu = None;
+                        self.player.update_status(PlayerStatus::Roam);
+                        if *self
+                            .castle
+                            .get_ref_object(self.player.encounter.coordinate)
+                            .unwrap()
+                            == Tile::Shop
+                        {
+                            self.player.encounter.coordinate = self.player.current_coordinate;
+                        }
+                    }
+                    ItemMenuAction::Confirm(item, quantity) => match kind {
+                        MenuType::Shop => self.player.buy(item, quantity),
+                        MenuType::Inventory => self.player.use_item(item, quantity),
+                    },
+                    ItemMenuAction::None => {}
+                }
+            }
+        } else if self.player.in_event() && self.state == GameState::Active {
+            if self.player.menu.is_none() {
+                self.player.menu = Some(ActiveMenu::Event(EventMenu::open()));
+            }
+
+            let offset = castle_offset(&self.castle);
+
+            if let Some(menu) = self.player.menu.take()
+                && let ActiveMenu::Event(mut event_menu) = menu
+            {
+                let action = if let Some(Tile::Door(event)) =
+                    self.castle.get_ref_object(self.player.encounter.coordinate)
+                {
+                    event_menu.display(&self.player, event, offset)
+                } else {
+                    EventMenuAction::None
+                };
+                self.player.menu = Some(ActiveMenu::Event(event_menu));
+
+                if let Some(Tile::Door(event)) = self
+                    .castle
+                    .get_mutable_object(self.player.encounter.coordinate)
+                {
+                    event.resolve(&mut self.player, action);
+                }
+
+                let reached_outcome = matches!(
+                    self.castle.get_ref_object(self.player.encounter.coordinate),
+                    Some(Tile::Door(event)) if event.outcome().is_some()
+                );
+
+                if reached_outcome && self.player.hp > 0 {
+                    if self.player.event_log.remaining > 0.0 {
+                        self.player.event_log.remaining -= dt;
+                        return Flow::SkipFrame;
+                    }
+
+                    if let Some(Tile::Door(event)) = self
+                        .castle
+                        .get_mutable_object(self.player.encounter.coordinate)
+                    {
+                        event.clear_outcome();
+                        event.replace_if_complete();
+                    }
+
+                    self.player.menu = None;
+                    self.player.turn = None;
+                    self.player.cooldown = 1.0;
+                    self.player.update_status(PlayerStatus::Roam);
+                    self.player.encounter.coordinate = self.player.current_coordinate;
+                    self.player.event_log.reset();
+                }
+            }
+        } else {
+            Controller::roam(
+                &self.castle,
+                &mut self.player,
+                &mut self.zombie,
+                &dt,
+                &mut self.state,
+            );
+        }
+
+        Flow::Continue
+    }
+
+    fn resolve_frame(&mut self) {
+        Controller::mutate_game_state(&mut self.state);
+
+        if !matches!(self.state, GameState::Win | GameState::Lose) {
+            self.player.dead();
+            self.player.caught(&self.zombie);
+            self.state = check_game_status(&self.player, &self.state);
+        }
+    }
+
+    fn reset_if_over(&mut self) -> bool {
+        if reset_game(&mut self.state) {
+            self.reinitialize();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn reinitialize(&mut self) {
+        self.castle = Castle::generate();
+        self.player = Player::spawn(&self.castle);
+        self.zombie = Zombie::spawn(&self.castle, &self.player);
+    }
 }
 
 pub fn castle_offset(castle: &Castle) -> Offset {
@@ -56,214 +554,6 @@ fn draw_asset(
         WHITE,
         scale_params,
     );
-}
-
-fn render_castle(
-    castle: &Castle,
-    player: &Player,
-    texture_map: &HashMap<&str, Texture2D>,
-    scale_params: &DrawTextureParams,
-) {
-    let offset = castle_offset(castle);
-
-    if player.in_inventory() || player.in_shop() || player.encounter.is_playable_event(castle) {
-        return;
-    }
-
-    for (coordinate, tile) in &castle.layout {
-        if coordinate.z != castle.current_floor {
-            continue;
-        }
-
-        match tile {
-            Tile::Floor => {
-                draw_rectangle(
-                    offset.x + coordinate.to_float(Component::X) * TILE_SIZE,
-                    offset.y + coordinate.to_float(Component::Y) * TILE_SIZE,
-                    TILE_SIZE,
-                    TILE_SIZE,
-                    BLACK,
-                );
-            }
-            Tile::Shop => {
-                draw_asset(
-                    texture_map.get("merchant").unwrap(),
-                    *coordinate,
-                    scale_params.clone(),
-                    offset,
-                );
-            }
-
-            Tile::Door(_) => {
-                let door_type = if player.effects.reveal_exit()
-                    && matches!(
-                        castle.get_ref_object(*coordinate),
-                        Some(Tile::Door(EventID::Exit))
-                    ) {
-                    "exit"
-                } else {
-                    "door"
-                };
-
-                draw_asset(
-                    texture_map.get(door_type).unwrap(),
-                    *coordinate,
-                    scale_params.clone(),
-                    offset,
-                );
-            }
-        }
-    }
-
-    draw_text(
-        format!("Floor {} of {}", castle.current_floor + 1, castle.floors),
-        screen_width() / 2.0 * 0.92,
-        screen_height() * 0.95,
-        20.0,
-        WHITE,
-    );
-}
-
-fn render_moving_objects(
-    castle: &Castle,
-    player: &Player,
-    zombie: &Zombie,
-    texture_map: &HashMap<&str, Texture2D>,
-    scale_params: &DrawTextureParams,
-) {
-    let offset = castle_offset(castle);
-
-    if player.in_inventory() || player.in_shop() {
-        return;
-    }
-
-    if player.status != PlayerStatus::Hide {
-        draw_asset(
-            texture_map.get("player").unwrap(),
-            player.current_coordinate,
-            scale_params.clone(),
-            offset,
-        );
-    }
-
-    if player.encounter.is_playable_event(castle) {
-        return;
-    }
-
-    draw_asset(
-        texture_map.get("zombie").unwrap(),
-        zombie.current_coordinate,
-        scale_params.clone(),
-        offset,
-    );
-
-    if player.effects.freeze_zombie() {
-        draw_asset(
-            texture_map.get("x").unwrap(),
-            zombie.current_coordinate,
-            scale_params.clone(),
-            offset,
-        );
-    }
-}
-
-fn activate_event(
-    castle: &mut Castle,
-    player: &mut Player,
-    zombie: &mut Zombie,
-    texture_map: &HashMap<&str, Texture2D>,
-    scale_params: &DrawTextureParams,
-    transition: &mut Option<Transition>,
-) {
-    let offset = castle_offset(castle);
-    if let Some(tile) = castle.get_mutable_object(player.encounter.coordinate) {
-        match tile {
-            Tile::Door(EventID::MonsterEvent(_)) => {
-                if player.status == PlayerStatus::Inventory {
-                    return;
-                }
-
-                if player.status != PlayerStatus::Event {
-                    player.update_status(PlayerStatus::Event);
-                }
-
-                draw_asset(
-                    texture_map.get("monster").unwrap(),
-                    player.encounter.coordinate,
-                    scale_params.clone(),
-                    offset,
-                );
-            }
-            Tile::Door(EventID::FairyEvent(_)) => {
-                if player.status == PlayerStatus::Inventory {
-                    return;
-                }
-
-                if player.status != PlayerStatus::Event {
-                    player.update_status(PlayerStatus::Event);
-                }
-
-                draw_asset(
-                    texture_map.get("fairy").unwrap(),
-                    player.encounter.coordinate,
-                    scale_params.clone(),
-                    offset,
-                );
-            }
-            Tile::Door(EventID::GenieEvent(_)) => {
-                if player.status == PlayerStatus::Inventory {
-                    return;
-                }
-
-                if player.status != PlayerStatus::Event {
-                    player.update_status(PlayerStatus::Event);
-                }
-
-                draw_asset(
-                    texture_map.get("genie").unwrap(),
-                    player.encounter.coordinate,
-                    scale_params.clone(),
-                    offset,
-                );
-            }
-            Tile::Shop => {
-                if player.status != PlayerStatus::Shop {
-                    player.update_status(PlayerStatus::Shop);
-                }
-            }
-            Tile::Door(EventID::Empty) => {
-                if player.status != PlayerStatus::Hide {
-                    player.update_status(PlayerStatus::Hide);
-                }
-            }
-            Tile::Door(EventID::Exit) => {
-                if player.current_coordinate.z < castle.max_floors() {
-                    castle.increment_floor();
-                    player.current_coordinate =
-                        Player::select_initial_location(castle, castle.current_floor);
-                    player.encounter.coordinate = player.current_coordinate;
-                    player.effects.inactivate(Item::CrystalBall);
-
-                    zombie.current_coordinate =
-                        Zombie::select_initial_location(castle, player, castle.current_floor);
-                    player.update_status(PlayerStatus::Roam);
-
-                    *transition = Some(Transition {
-                        remaining: 2.0,
-                        first_text: "Found the exit.".to_string(),
-                        second_text: format!("Moving to floor: {}", castle.current_floor),
-                    });
-                } else {
-                    player.update_status(PlayerStatus::Win);
-                }
-            }
-            Tile::Floor => {
-                if !player.in_inventory() {
-                    player.update_status(PlayerStatus::Roam)
-                }
-            }
-        };
-    }
 }
 
 fn draw_transparant_screen(
@@ -297,7 +587,7 @@ fn draw_transparant_screen(
     );
 }
 
-fn check_game_status(player: &Player, game_status: GameState) -> GameState {
+fn check_game_status(player: &Player, game_status: &GameState) -> GameState {
     if player.status == PlayerStatus::Lose {
         GameState::Lose
     } else if player.status == PlayerStatus::Win {
@@ -326,7 +616,7 @@ fn reset_game(game_state: &mut GameState) -> bool {
             0.85,
             0.95,
             1.05,
-        )
+        );
     }
 
     let Some(key) = Controller::get_key() else {
@@ -344,237 +634,5 @@ fn reset_game(game_state: &mut GameState) -> bool {
 
 #[macroquad::main("Castle Descent")]
 async fn main() {
-    set_fullscreen(true);
-
-    let (mut castle, mut player, mut zombie) = initialize();
-
-    let door_bytes: &[u8] = include_bytes!("../assets/door.png");
-    let merchant_bytes: &[u8] = include_bytes!("../assets/merchant.png");
-    let monster_bytes: &[u8] = include_bytes!("../assets/monster.png");
-    let fairy_bytes: &[u8] = include_bytes!("../assets/fairy.png");
-    let genie_bytes: &[u8] = include_bytes!("../assets/genie.png");
-    let player_bytes: &[u8] = include_bytes!("../assets/player.png");
-    let zombie_bytes: &[u8] = include_bytes!("../assets/zombie.png");
-    let exit_bytes: &[u8] = include_bytes!("../assets/exit.png");
-    let crystal_ball_bytes: &[u8] = include_bytes!("../assets/crystal_ball.png");
-    let meat_bytes: &[u8] = include_bytes!("../assets/meat.png");
-    let hourglass_bytes: &[u8] = include_bytes!("../assets/hourglass.png");
-    let x_bytes: &[u8] = include_bytes!("../assets/x.png");
-
-    let texture_map: HashMap<&str, Texture2D> = hashmap!(
-        "door" ; Texture2D::from_file_with_format(door_bytes, None),
-        "merchant" ; Texture2D::from_file_with_format(merchant_bytes, None),
-        "monster" ; Texture2D::from_file_with_format(monster_bytes, None),
-        "fairy" ; Texture2D::from_file_with_format(fairy_bytes, None),
-        "genie" ; Texture2D::from_file_with_format(genie_bytes, None),
-        "player" ; Texture2D::from_file_with_format(player_bytes, None),
-        "zombie" ; Texture2D::from_file_with_format(zombie_bytes, None),
-        "exit" ; Texture2D::from_file_with_format(exit_bytes, None),
-        "crystal_ball" ; Texture2D::from_file_with_format(crystal_ball_bytes, None),
-        "meat" ; Texture2D::from_file_with_format(meat_bytes, None),
-        "hourglass" ; Texture2D::from_file_with_format(hourglass_bytes, None),
-        "x" ; Texture2D::from_file_with_format(x_bytes, None)
-    );
-
-    let scale_params = DrawTextureParams {
-        dest_size: Some(vec2(TILE_SIZE, TILE_SIZE)),
-        ..Default::default()
-    };
-
-    let mut game_state = GameState::Start;
-    let mut transition: Option<Transition> = None;
-
-    loop {
-        clear_background(BLACK);
-
-        if game_state == GameState::Quit {
-            break;
-        }
-
-        while game_state == GameState::Start {
-            draw_transparant_screen(
-                "Castle Descent",
-                "Press 'enter' to start game.",
-                0.90,
-                0.85,
-                0.95,
-                1.05,
-            );
-            Controller::start(&mut game_state);
-            if let Some(key) = Controller::get_key() {
-                Controller::quit(&key, &mut game_state);
-            }
-
-            next_frame().await;
-            continue;
-        }
-
-        let dt = get_frame_time().min(0.25);
-        render_castle(&castle, &player, &texture_map, &scale_params);
-        render_moving_objects(&castle, &player, &zombie, &texture_map, &scale_params);
-
-        if let Some(t) = &mut transition {
-            t.remaining -= dt;
-            draw_transparant_screen(&t.first_text, &t.second_text, 0.93, 0.945, 0.95, 1.05);
-            if t.remaining <= 0.0 {
-                transition = None;
-            }
-
-            next_frame().await;
-            continue;
-        }
-
-        activate_event(
-            &mut castle,
-            &mut player,
-            &mut zombie,
-            &texture_map,
-            &scale_params,
-            &mut transition,
-        );
-
-        player.open_inventory();
-        if player.effects.any_active() {
-            zombie.freeze(&mut player, &game_state, dt);
-            player.replenish_stats();
-        }
-
-        if (player.in_shop() || player.in_inventory()) && game_state == GameState::Active {
-            if player.menu.is_none() {
-                let kind = if player.in_shop() {
-                    MenuType::Shop
-                } else {
-                    MenuType::Inventory
-                };
-
-                player.menu = Some(ActiveMenu::Item(ItemMenu::open(kind)));
-            }
-
-            let items = if player.in_shop() {
-                Item::item_and_price()
-            } else {
-                player.inventory.storage_to_pairs()
-            };
-            let max_distance = if player.in_shop() {
-                Item::max_distance()
-            } else {
-                player.inventory.max_space_distance()
-            };
-
-            if let Some(menu) = player.menu.take()
-                && let ActiveMenu::Item(mut item_menu) = menu
-            {
-                let kind = item_menu.kind();
-                let action = item_menu.display(
-                    &player,
-                    &items,
-                    &texture_map,
-                    max_distance,
-                    scale_params.clone(),
-                );
-
-                player.menu = Some(ActiveMenu::Item(item_menu));
-
-                match action {
-                    ItemMenuAction::Close => {
-                        player.menu = None;
-                        player.update_status(PlayerStatus::Roam);
-                        if *castle.get_ref_object(player.encounter.coordinate).unwrap()
-                            == Tile::Shop
-                        {
-                            player.encounter.coordinate = player.current_coordinate;
-                        }
-                    }
-                    ItemMenuAction::Confirm(item, quantity) => match kind {
-                        MenuType::Shop => player.buy(item, quantity),
-                        MenuType::Inventory => player.use_item(item, quantity),
-                    },
-                    ItemMenuAction::None => {}
-                }
-            }
-        } else if player.in_event() && game_state == GameState::Active {
-            if player.menu.is_none() {
-                player.menu = Some(ActiveMenu::Event(EventMenu::open()));
-            }
-
-            let offset = castle_offset(&castle);
-
-            if let Some(menu) = player.menu.take()
-                && let ActiveMenu::Event(mut event_menu) = menu
-            {
-                let action = if let Some(Tile::Door(event)) =
-                    castle.get_ref_object(player.encounter.coordinate)
-                {
-                    event_menu.display(&player, event, offset)
-                } else {
-                    EventMenuAction::None
-                };
-
-                player.menu = Some(ActiveMenu::Event(event_menu));
-
-                if let Some(Tile::Door(event)) =
-                    castle.get_mutable_object(player.encounter.coordinate)
-                {
-                    event.resolve(&mut player, action);
-                }
-
-                let reached_outcome = matches!(
-                    castle.get_ref_object(player.encounter.coordinate),
-                    Some(Tile::Door(event)) if event.outcome().is_some()
-                );
-
-                if reached_outcome && player.hp > 0 {
-                    if player.event_log.remaining > 0.0 {
-                        player.event_log.remaining -= dt;
-
-                        next_frame().await;
-                        continue;
-                    }
-
-                    if let Some(Tile::Door(event)) =
-                        castle.get_mutable_object(player.encounter.coordinate)
-                    {
-                        event.clear_outcome();
-                        event.replace_if_complete();
-                    }
-
-                    player.menu = None;
-                    player.turn = None;
-                    player.cooldown = 1.0;
-                    player.update_status(PlayerStatus::Roam);
-                    player.encounter.coordinate = player.current_coordinate;
-                    player.event_log.reset();
-                }
-            }
-        } else {
-            Controller::roam(&castle, &mut player, &mut zombie, &dt, &mut game_state);
-        }
-
-        Controller::mutate_game_state(&mut game_state);
-        if !matches!(game_state, GameState::Win | GameState::Lose) {
-            player.dead();
-            player.caught(&zombie);
-            game_state = check_game_status(&player, game_state);
-        }
-
-        if matches!(game_state, GameState::Paused) {
-            draw_transparant_screen(
-                "Game Paused",
-                "Press escape to continue.",
-                0.95,
-                0.91,
-                1.0,
-                1.1,
-            );
-
-            zombie.update_status(ZombieStatus::Frozen)
-        }
-
-        if reset_game(&mut game_state) {
-            clear_background(BLACK);
-            (castle, player, zombie) = initialize();
-        }
-
-        next_frame().await
-    }
+    Game::new().run().await;
 }

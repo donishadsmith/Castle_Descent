@@ -93,14 +93,6 @@ impl Controller {
         }
     }
 
-    pub fn shop(player: &mut Player) {
-        Controller::escape(player);
-    }
-
-    pub fn inventory(player: &mut Player) {
-        Controller::escape(player)
-    }
-
     pub fn get_key() -> Option<KeyCode> {
         let mut key_press = get_keys_pressed().iter().next().cloned();
         if key_press.is_none() {
@@ -137,13 +129,6 @@ impl Controller {
     fn resume(key: &KeyCode, game_state: &mut GameState) {
         if *game_state == GameState::Paused && matches!(key, KeyCode::Escape) {
             *game_state = GameState::Active;
-        }
-    }
-
-    fn escape(player: &mut Player) {
-        if matches!(Controller::get_key(), Some(KeyCode::Escape)) {
-            player.update_status(PlayerStatus::Roam);
-            player.encounter.coordinate = player.current_coordinate;
         }
     }
 }
