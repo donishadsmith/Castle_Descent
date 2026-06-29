@@ -337,9 +337,9 @@ impl EventMenu {
 
         offset.x *= 1.25;
 
-        let log_message = match player.event_log.message.clone() {
+        let log_message = match &player.event_log.message {
             Some(message) => message,
-            None => player.event_log.encounter_message(entity.identity()),
+            None => &player.event_log.encounter_message(entity.identity()),
         };
 
         draw_text(log_message, offset.x + 30.0, screen_y * 0.86, 20.0, WHITE);

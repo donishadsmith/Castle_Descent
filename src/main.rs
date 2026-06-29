@@ -66,6 +66,10 @@ impl Assets {
     fn tex(&self, name: &str) -> &Texture2D {
         self.textures.get(name).unwrap()
     }
+
+    fn scale_params(&self) -> DrawTextureParams {
+        self.scale.clone()
+    }
 }
 
 struct Game {
@@ -193,7 +197,7 @@ impl Game {
                     draw_asset(
                         self.assets.tex("merchant"),
                         *coordinate,
-                        self.assets.scale.clone(),
+                        self.assets.scale_params(),
                         offset,
                     );
                 }
@@ -211,7 +215,7 @@ impl Game {
                     draw_asset(
                         self.assets.tex(door_type),
                         *coordinate,
-                        self.assets.scale.clone(),
+                        self.assets.scale_params(),
                         offset,
                     );
                 }
@@ -242,7 +246,7 @@ impl Game {
             draw_asset(
                 self.assets.tex("player"),
                 self.player.current_coordinate,
-                self.assets.scale.clone(),
+                self.assets.scale_params(),
                 offset,
             );
         }
@@ -254,7 +258,7 @@ impl Game {
         draw_asset(
             self.assets.tex("zombie"),
             self.zombie.current_coordinate,
-            self.assets.scale.clone(),
+            self.assets.scale_params(),
             offset,
         );
 
@@ -262,7 +266,7 @@ impl Game {
             draw_asset(
                 self.assets.tex("x"),
                 self.zombie.current_coordinate,
-                self.assets.scale.clone(),
+                self.assets.scale_params(),
                 offset,
             );
         }
@@ -303,7 +307,7 @@ impl Game {
                     draw_asset(
                         self.assets.tex("monster"),
                         self.player.encounter.coordinate,
-                        self.assets.scale.clone(),
+                        self.assets.scale_params(),
                         offset,
                     );
                 }
@@ -317,7 +321,7 @@ impl Game {
                     draw_asset(
                         self.assets.tex("fairy"),
                         self.player.encounter.coordinate,
-                        self.assets.scale.clone(),
+                        self.assets.scale_params(),
                         offset,
                     );
                 }
@@ -331,7 +335,7 @@ impl Game {
                     draw_asset(
                         self.assets.tex("genie"),
                         self.player.encounter.coordinate,
-                        self.assets.scale.clone(),
+                        self.assets.scale_params(),
                         offset,
                     );
                 }
@@ -418,7 +422,7 @@ impl Game {
                     &items,
                     &self.assets.textures,
                     max_distance,
-                    self.assets.scale.clone(),
+                    self.assets.scale_params(),
                 );
                 self.player.menu = Some(ActiveMenu::Item(item_menu));
 
